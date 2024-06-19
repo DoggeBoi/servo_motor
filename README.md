@@ -18,3 +18,6 @@ This repository contains a proof-of-concept project demonstrating the control of
 - LSM6SDO 3-axis angle sensing using 6-axis IMU and a complementary filter.
 - Current sensing using internal opamp.
 - Complete CAN driver with exact memory mapping.
+
+# Testing setup as of 19/06/24
+![Uploading IMG_20240619_185021659.jpg…]()
