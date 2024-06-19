@@ -3,7 +3,7 @@ This repository contains a proof-of-concept project demonstrating the control of
 
 # Features
 - **Trapezoidal Profile Generator:** Allows for perfectly smooth trajectory changes at any time in the profile path.
-- **PID Controller:** Implements a bilinear transform PID controller with a low pass derivative filter and dynamic integrator.
+- **PID Controller:** Implements a bilinear transform PID controller with a low pass derivative filter and dynamic integrator clamping.
 - **Sensor Integration:**
   - External temperature measurement using an NTC thermistor and voltage splitter.
   - Internal temperature monitoring via the STM32F303 microcontroller's internal temperature sensor
