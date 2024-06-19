@@ -13,7 +13,7 @@ This repository contains a proof-of-concept project demonstrating the control of
 - **Motor Control:** Motor control through the TB6612FNG H-Bridge driver for actuation.
 
 # To-be-added
-- ROTS implementation.
+- RTOS implementation.
 - Automatic shutdown in case of detected failure.
 - LSM6SDO 3-axis angle sensing using 6-axis IMU and a complementary filter.
 - Current sensing using internal opamp.
