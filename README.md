@@ -20,4 +20,5 @@ This repository contains a proof-of-concept project demonstrating the control of
 - Complete CAN driver with exact memory mapping.
 
 # Testing setup as of 19/06/24
-![Uploading IMG_20240619_185021659.jpg…]()
+![IMG_20240619_185021659](https://github.com/DoggeBoi/servo_motor/assets/59169880/0492c42f-4054-40ac-a414-125c2da43139)
+
