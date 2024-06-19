@@ -55,7 +55,7 @@
 #define SERVO_PID_INTERVAL			4						// 4 ms
 
 /*   Static friction compensation value   */
-#define SERVO_STATIC_FRICTION		75
+#define SERVO_STATIC_FRICTION		55
 
 /*   Hardware error status   */
 typedef struct {

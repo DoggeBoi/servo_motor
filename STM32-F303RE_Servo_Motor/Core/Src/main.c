@@ -147,8 +147,8 @@ CAN_SendDataFrame(&servo.can, TxData, 2, PRIORITY_CRITICAL, 0x1);
   encoderInit	(&servo, &hspi1, GPIOB, SPI1_CS_Pin);
   motorInit		(&servo, &htim2, TIM_CHANNEL_1, hswA_GPIO_Port, hswA_Pin, hswB_GPIO_Port, hswB_Pin);
   sensorsInit	(&servo, &hadc1, &hadc2, &hadc3, &hadc4);
-  //pidInit		(&servo, 3000, 1000, 250, 100);
-  pidInit		(&servo, 3000, 0, 200, 100);
+  pidInit		(&servo, 3000, 1000, 250, 100);
+
 
 	servo.motor.direction = 0;
 	servo.PID.setPoint = 3000;
