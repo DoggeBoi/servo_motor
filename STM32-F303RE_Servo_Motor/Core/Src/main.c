@@ -143,11 +143,12 @@ CAN_SendDataFrame(&servo.can, TxData, 2, PRIORITY_CRITICAL, 0x1);
 
 
 
-  servoInit	(&servo);
+  servoInit		(&servo);
   encoderInit	(&servo, &hspi1, GPIOB, SPI1_CS_Pin);
-  motorInit	(&servo, &htim2, TIM_CHANNEL_1, hswA_GPIO_Port, hswA_Pin, hswB_GPIO_Port, hswB_Pin);
+  motorInit		(&servo, &htim2, TIM_CHANNEL_1, hswA_GPIO_Port, hswA_Pin, hswB_GPIO_Port, hswB_Pin);
   sensorsInit	(&servo, &hadc1, &hadc2, &hadc3, &hadc4);
-  pidInit		(&servo, 2000, 1000, 250, 100);
+  //pidInit		(&servo, 3000, 1000, 250, 100);
+  pidInit		(&servo, 3000, 0, 200, 100);
 
 	servo.motor.direction = 0;
 	servo.PID.setPoint = 3000;
@@ -244,7 +245,7 @@ CAN_SendDataFrame(&servo.can, TxData, 2, PRIORITY_CRITICAL, 0x1);
 	derivative = servo.PID.differentaitor;
 
 
-    sprintf(str, "%.2f \t%.2f \t%.2f \t%.2f \t%.2f \t%.2f \t%.2f \t%.2f \t%.2f \t%.2d \t %.2f \t %.2f\t\n", angle, setpoint, error, cycle, proportinal, integral, derivative, (float) servo.velocity, (float) servo.acceleration, servo.profile.trajectoryVelocity, servo.profile.trajectoryFollowing * 1.0f, (servo.PID.outputLimited - servo.PID.output) * 1.0f);
+    sprintf(str, "%.2f \t%.2f \t%.2f \t%.2f \t%.2f \t%.2f \t%.2f \t%.2f \t%.2f \t%.2d \t %.2f \t %.2f\t\n", angle, setpoint, error, cycle, proportinal, integral, derivative, (float) servo.velocity, (float) servo.acceleration, servo.profile.trajectoryVelocity, servo.PID.integratorLimitMin  * 1.0f, servo.PID.integratorLimitMax * 1.0f);
 
     HAL_UART_Transmit(&huart2, (uint8_t *)str, strlen((char*)str), HAL_MAX_DELAY);
 

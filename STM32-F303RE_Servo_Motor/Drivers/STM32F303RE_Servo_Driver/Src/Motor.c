@@ -156,14 +156,14 @@ void pidUpdate(SERVO_CONTROL *servo) {
 								  ( servo->PID.Error + servo->PID.prevError );
 
 	/*   Calculate PID dynamic anti whind-up limits   */
-	if ( servo->PID.outputMax > servo->PID.proportinal )  				servo->PID.integratorLimitMax 	= servo->PID.outputMax - servo->PID.proportinal;
+	if ( servo->PID.outputMax > servo->PID.proportinal )  				servo->PID.integratorLimitMax 	= ( servo->PID.outputMax - servo->PID.proportinal );
 	else 																servo->PID.integratorLimitMax 	= 0.0f;
 
-	if ( servo->PID.outputMin < servo->PID.proportinal )  				servo->PID.integratorLimitMin 	= servo->PID.outputMax - servo->PID.proportinal;
+	if ( servo->PID.outputMin < servo->PID.proportinal )  				servo->PID.integratorLimitMin 	= ( servo->PID.outputMin - servo->PID.proportinal );
 	else 																servo->PID.integratorLimitMin 	= 0.0f;
 
     /*   Apply calculated clamping limits   */
-	if ( servo->PID.integrator > servo->PID.integratorLimitMax ) 		servo->PID.integrator 			= servo->PID.integratorLimitMax;
+	if 		( servo->PID.integrator > servo->PID.integratorLimitMax )   servo->PID.integrator 			= servo->PID.integratorLimitMax;
 	else if ( servo->PID.integrator < servo->PID.integratorLimitMin ) 	servo->PID.integrator 			= servo->PID.integratorLimitMin;
 
 	/*   Calculate velocity   */
