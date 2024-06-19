@@ -1,5 +1,11 @@
 # Prerequisites
 *.d
+# Eclipse
+.metadata
+.settings
+[Rr]elease
+[Dd]ebug
+.launch
 
 # Object files
 *.o
