@@ -32,8 +32,8 @@
 #define	SERVO_PROFILE_RESET 		0
 
 /*   Operating limits   */
-#define SERVO_MAX_VOLTAGE			12000					// 12 V
-#define SERVO_MIN_VOLTAGE			6500					// 6.5 V
+#define SERVO_MAX_VOLTAGE			16000					// 16 V
+#define SERVO_MIN_VOLTAGE			8000					// 8 V
 #define SERVO_MAX_MOTOR_TEMP		8000					// 80 °C
 #define SERVO_MAX_INTERNAL_TEMP		8000					// 80 °C
 #define SERVO_MAX_CURRENT			3000					// 3 A
@@ -256,6 +256,13 @@ void motionPorfile(SERVO_CONTROL *servo, uint8_t timeStep);
 
 /*   General error handler   */
 void errorHandeler(SERVO_CONTROL *servo);
+
+
+/*   Motor power control functions   */
+void torqueDisable(SERVO_CONTROL *servo);
+
+void torqueEnable(SERVO_CONTROL *servo);
+
 
 
 #endif /* STM32F303RE_SERVO_DRIVER_INC_MOTOR_H */

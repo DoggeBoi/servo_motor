@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "cmsis_os.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -62,8 +63,11 @@ TIM_HandleTypeDef htim2;
 
 UART_HandleTypeDef huart2;
 
+osThreadId servoUpdateHandle;
 /* USER CODE BEGIN PV */
+
 SERVO_CONTROL servo;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -78,13 +82,15 @@ static void MX_ADC3_Init(void);
 static void MX_ADC4_Init(void);
 static void MX_CAN_Init(void);
 static void MX_SPI2_Init(void);
+void StartServoUpdateTask(void const * argument);
+
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
+uint16_t count = 0;
 /* USER CODE END 0 */
 
 /**
@@ -127,22 +133,12 @@ int main(void)
   MX_SPI2_Init();
   /* USER CODE BEGIN 2 */
 
-
-
-
-
-
-
+  /*   CAN MESSAGE TEST   */
   CAN_Init(&servo.can, &hcan, 1);
-
   uint8_t TxData[] = {0x1,0x2};
+  CAN_SendDataFrame(&servo.can, TxData, 2, PRIORITY_CRITICAL, 0x1);
 
-
-CAN_SendDataFrame(&servo.can, TxData, 2, PRIORITY_CRITICAL, 0x1);
-
-
-
-
+  /*   Initialisation sequence   */
   servoInit		(&servo);
   encoderInit	(&servo, &hspi1, GPIOB, SPI1_CS_Pin);
   motorInit		(&servo, &htim2, TIM_CHANNEL_1, hswA_GPIO_Port, hswA_Pin, hswB_GPIO_Port, hswB_Pin);
@@ -150,110 +146,46 @@ CAN_SendDataFrame(&servo.can, TxData, 2, PRIORITY_CRITICAL, 0x1);
   pidInit		(&servo, 3000, 1000, 250, 100);
 
 
-	servo.motor.direction = 0;
-	servo.PID.setPoint = 3000;
 
-
-
-  float angle;
-  float temp;
-  float temp1;
-  float voltage;
-  float setpoint;
-  char str[110]; //////////!!!!!!!!!!!!!!!!!!!!TEMMP
-  uint16_t count = 0;
-  float error = 0;
-  float cycle;
-  float proportinal;
-  float integral;
-  float derivative;
-
-
-
-
-  servo.goalPosition  = 3000;
-  servo.PID.setPoint = 3000;
-  servo.profile.trajectoryGoalPosition = 3000;
 
   servo.torqueEnable 					= SERVO_TORQUE_ENABLE;
 
   /* USER CODE END 2 */
 
+  /* USER CODE BEGIN RTOS_MUTEX */
+  /* add mutexes, ... */
+  /* USER CODE END RTOS_MUTEX */
+
+  /* USER CODE BEGIN RTOS_SEMAPHORES */
+  /* add semaphores, ... */
+  /* USER CODE END RTOS_SEMAPHORES */
+
+  /* USER CODE BEGIN RTOS_TIMERS */
+  /* start timers, add new ones, ... */
+  /* USER CODE END RTOS_TIMERS */
+
+  /* USER CODE BEGIN RTOS_QUEUES */
+  /* add queues, ... */
+  /* USER CODE END RTOS_QUEUES */
+
+  /* Create the thread(s) */
+  /* definition and creation of servoUpdate */
+  osThreadDef(servoUpdate, StartServoUpdateTask, osPriorityRealtime, 0, 512);
+  servoUpdateHandle = osThreadCreate(osThread(servoUpdate), NULL);
+
+  /* USER CODE BEGIN RTOS_THREADS */
+  /* add threads, ... */
+  /* USER CODE END RTOS_THREADS */
+
+  /* Start scheduler */
+  osKernelStart();
+
+  /* We should never get here as control is now taken by the scheduler */
+
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  HAL_GPIO_WritePin(Loop_time_GPIO_Port, Loop_time_Pin, GPIO_PIN_SET);
-	 count += 1;
-	 sensorsUpdate(&servo);
-	 encoderUpdate	(&servo);
-
-
-
-	 if (count == 0 ){
-		 	servo.goalPosition  = 5855;
-
-	 	}
-	 if (count == 200 ){
-			 	servo.goalPosition  = 6048;
-
-		 	}
-	 if (count == 400 ){
-	 			 	servo.goalPosition  = 4427;
-
-	 		 	}
-	 if (count == 600 ){
-	 			 	servo.goalPosition  = 4985;
-
-	 		 	}
-	 if (count == 800 ){
-	 			 	servo.goalPosition  = 5335;
-
-	 		 	}
-	 if (count == 1000 ){
-	 			 	servo.goalPosition  = 7300;
-
-	 		 	}
-	 if (count == 1200 ){
-	 			 	servo.goalPosition  = 5352;
-
-	 		 	}
-	 if (count == 1400 ){
-	 			 	servo.goalPosition  = 8000;
-	 				count = 0;
-	 		 	}
-
-
-
-
-	 motionPorfile(&servo, 4);
-
-
-
-
-
-
-	angle = servo.encoder.angle;		// degrees 360
-	setpoint = servo.PID.setPoint;
-	temp = servo.intTemp.converData / 100.0f;
-	temp1 = servo.motorTemp.converData / 100.0f;
-	voltage = servo.batteryVoltage.converData / 1000.0f;
-	error = servo.PID.Error;
-	cycle = servo.motor.dutyCycle;
-	proportinal = servo.PID.proportinal;
-	integral = servo.PID.integrator;
-	derivative = servo.PID.differentaitor;
-
-
-    sprintf(str, "%.2f \t%.2f \t%.2f \t%.2f \t%.2f \t%.2f \t%.2f \t%.2f \t%.2f \t%.2d \t %.2f \t %.2f\t\n", angle, setpoint, error, cycle, proportinal, integral, derivative, (float) servo.velocity, (float) servo.acceleration, servo.profile.trajectoryVelocity, servo.PID.integratorLimitMin  * 1.0f, servo.PID.integratorLimitMax * 1.0f);
-
-    HAL_UART_Transmit(&huart2, (uint8_t *)str, strlen((char*)str), HAL_MAX_DELAY);
-
-	pidUpdate		(&servo);
-	motorUpdatePWM	(&servo);
-
-	HAL_GPIO_WritePin(Loop_time_GPIO_Port, Loop_time_Pin, GPIO_PIN_RESET);
-
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -828,6 +760,107 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 
 /* USER CODE END 4 */
+
+/* USER CODE BEGIN Header_StartServoUpdateTask */
+/**
+  * @brief  Function implementing the servoUpdate thread.
+  * @param  argument: Not used
+  * @retval None
+  */
+/* USER CODE END Header_StartServoUpdateTask */
+void StartServoUpdateTask(void const * argument)
+{
+	/* USER CODE BEGIN 5 */
+	char str[16];
+
+
+  /* Infinite loop */
+  for(;;)
+  {
+
+	/*   Sensors update   */
+	sensorsUpdate	(&servo);
+	encoderUpdate	(&servo);
+
+	/*   Motion update sequence   */
+	motionPorfile	(&servo, 4);
+	pidUpdate		(&servo);
+	motorUpdatePWM	(&servo);
+
+	/*   TEST   */
+	HAL_GPIO_WritePin(Loop_time_GPIO_Port, Loop_time_Pin, GPIO_PIN_SET);		// temp cylce time test
+	HAL_GPIO_WritePin(Loop_time_GPIO_Port, Loop_time_Pin, GPIO_PIN_RESET);		// Temp cylce time test
+
+
+	sprintf(str, "%.2f \t %.2f \t\n", servo.encoder.angle * 1.0f, servo.PID.setPoint * 1.0f);
+	HAL_UART_Transmit(&huart2, (uint8_t *)str, strlen((char*)str), HAL_MAX_DELAY);
+
+
+
+	 // Test motion
+	 	 count += 1;
+	 	 if (count == 0 ){
+	 		 	servo.goalPosition  = 5855;
+
+	 	 	}
+	 	 if (count == 200 ){
+	 			 	servo.goalPosition  = 6048;
+
+	 		 	}
+	 	 if (count == 400 ){
+	 	 			 	servo.goalPosition  = 4427;
+
+	 	 		 	}
+	 	 if (count == 600 ){
+	 	 			 	servo.goalPosition  = 4985;
+
+	 	 		 	}
+	 	 if (count == 800 ){
+	 	 			 	servo.goalPosition  = 5335;
+
+	 	 		 	}
+	 	 if (count == 1000 ){
+	 	 			 	servo.goalPosition  = 7300;
+
+	 	 		 	}
+	 	 if (count == 1200 ){
+	 	 			 	servo.goalPosition  = 5352;
+
+	 	 		 	}
+	 	 if (count == 1400 ){
+	 	 			 	servo.goalPosition  = 8000;
+	 	 				count = 0;
+	 	 		 	}
+
+    osDelay(servo.PID.samplePeriod);		//Set period to be same as PID sample time
+
+  }
+
+  osThreadTerminate(NULL);	// In case of accidental break from for loop
+
+  /* USER CODE END 5 */
+}
+
+/**
+  * @brief  Period elapsed callback in non blocking mode
+  * @note   This function is called  when TIM1 interrupt took place, inside
+  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+  * a global variable "uwTick" used as application time base.
+  * @param  htim : TIM handle
+  * @retval None
+  */
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  /* USER CODE BEGIN Callback 0 */
+
+  /* USER CODE END Callback 0 */
+  if (htim->Instance == TIM1) {
+    HAL_IncTick();
+  }
+  /* USER CODE BEGIN Callback 1 */
+
+  /* USER CODE END Callback 1 */
+}
 
 /**
   * @brief  This function is executed in case of error occurrence.

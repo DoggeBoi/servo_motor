@@ -96,13 +96,13 @@ void sensorsCheck(SERVO_CONTROL *servo) {
 	uint8_t status = 0;
 
 	/*   Check each sensor value   */
-	adcSensorRangeCheck(&servo->intTemp, &servo->hardwareError.overTempMCU, SERVO_MAX_INTERNAL_TEMP, 0);
+	status += adcSensorRangeCheck(&servo->intTemp, &servo->hardwareError.overTempMCU, SERVO_MAX_INTERNAL_TEMP, 0);
 
-	adcSensorRangeCheck(&servo->motorTemp, &servo->hardwareError.overTempMCU, SERVO_MAX_MOTOR_TEMP, 0);
+	status += adcSensorRangeCheck(&servo->motorTemp, &servo->hardwareError.overTempMCU, SERVO_MAX_MOTOR_TEMP, 0);
 
-	adcSensorRangeCheck(&servo->batteryVoltage, &servo->hardwareError.overTempMCU, SERVO_MAX_VOLTAGE, SERVO_MIN_VOLTAGE);
+	status += adcSensorRangeCheck(&servo->batteryVoltage, &servo->hardwareError.overTempMCU, SERVO_MAX_VOLTAGE, SERVO_MIN_VOLTAGE);
 
-	adcSensorRangeCheck(&servo->motorCurrent, &servo->hardwareError.overTempMCU, SERVO_MAX_CURRENT, 0);
+	//status += adcSensorRangeCheck(&servo->motorCurrent, &servo->hardwareError.overTempMCU, SERVO_MAX_CURRENT, 0);
 
 	/*   If range error has occurred call error handler   */
 	if ( status != 0 ) errorHandeler(servo);
@@ -408,6 +408,20 @@ void motionPorfile(SERVO_CONTROL *servo, uint8_t timeStep) {
 
 }
 
+/*   Motor power control functions   */
+void torqueDisable(SERVO_CONTROL *servo) {
+
+	servo->torqueEnable = SERVO_TORQUE_DISABLE;
+
+}
+
+void torqueEnable(SERVO_CONTROL *servo) {
+
+	encoderUpdate	(servo);
+	servo->goalPosition = servo->encoder.angle;
+	servo->torqueEnable = SERVO_TORQUE_ENABLE;
+
+}
 
 
 
