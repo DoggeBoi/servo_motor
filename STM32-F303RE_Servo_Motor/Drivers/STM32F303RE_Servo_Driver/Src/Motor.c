@@ -63,6 +63,7 @@ void servoInit(SERVO_CONTROL *servo) {
 void encoderInit(SERVO_CONTROL *servo, SPI_HandleTypeDef *spiHandle, GPIO_TypeDef *csPort, uint16_t csPin) {
 
 	AS5048A_Init(&servo->encoder, spiHandle, csPort, csPin, servo->motionDirection);
+	//ERROR HANDELER SET FLAG
 
 }
 
@@ -141,6 +142,12 @@ void pidInit(SERVO_CONTROL *servo, float Kp, float Kd, float Ki, float lpfConsta
 /*   PID calculate and update   */
 void pidUpdate(SERVO_CONTROL *servo) {
 
+
+	/*   Calculate internal values from external   */
+	float time 		= servo->PID.samplePeriod 	/ 1000.0f;
+	float filter 	= servo->PID.lpfConstant 	/ 1000.0f;
+
+
 	/*   Update PID input   */
 	servo->PID.Input 			= 	servo->encoder.angle;
 
@@ -152,7 +159,7 @@ void pidUpdate(SERVO_CONTROL *servo) {
 
 
 	/*   Calculate PID integrator term   */				// Disable change if torque is off.
-	servo->PID.integrator 		= 	servo->PID.integrator + servo->torqueEnable * 0.5f * ( servo->PID.Ki / 1000.0f ) * servo->PID.samplePeriod * 0.001f *
+	servo->PID.integrator 		= 	servo->PID.integrator + servo->torqueEnable * 0.5f * ( servo->PID.Ki / 1000.0f ) * time *
 								  ( servo->PID.Error + servo->PID.prevError );
 
 	/*   Calculate PID dynamic anti whind-up limits   */
@@ -168,18 +175,18 @@ void pidUpdate(SERVO_CONTROL *servo) {
 
 	/*   Calculate velocity   */
 	servo->velocity 	  		= ( ( 2.0f * ( servo->PID.Input - servo->PID.prevInput ) ) +
-			  	  	  	  	  	    ( 2.0f * ( servo->PID.lpfConstant / 1000.0f )  - servo->PID.samplePeriod * 0.001f ) * servo->velocity ) /
-			  	  	  	  	  	    ( 2.0f * ( servo->PID.lpfConstant / 1000.0f ) + servo->PID.samplePeriod * 0.001f );
+			  	  	  	  	  	    ( 2.0f * ( filter ) - time ) * servo->velocity ) /
+			  	  	  	  	  	    ( 2.0f * ( filter ) + time );
 
 	/*   Calculate acceleration   */
-	servo->acceleration 	  	= ( ( 2.0f * ( servo->velocity - servo->prevVelocity ) ) +
-  	  	  	    					( 2.0f * ( servo->PID.lpfConstant / 1000.0f )  - servo->PID.samplePeriod * 0.001f ) * servo->acceleration ) /
-  	  	  	    					( 2.0f * ( servo->PID.lpfConstant / 1000.0f ) + servo->PID.samplePeriod * 0.001f );
+	servo->acceleration 	  	= ( ( 2.0f * ( servo->velocity   - servo->prevVelocity ) ) +
+  	  	  	    					( 2.0f * ( filter ) - time ) * servo->acceleration ) /
+  	  	  	    					( 2.0f * ( filter ) + time );
 
 	/*   Calculate PID differentaitor term   */					// Differentaitor is wrong way for some reason.... Negating w -100000.0f
 	servo->PID.differentaitor 	= 	( ( 2.0f * ( servo->PID.Kd / -100000.0f )  * ( servo->PID.Input - servo->PID.prevInput ) ) +
-									  ( 2.0f * ( servo->PID.lpfConstant / 1000.0f )  - servo->PID.samplePeriod * 0.001f ) * servo->PID.differentaitor ) /
-									  ( 2.0f * ( servo->PID.lpfConstant / 1000.0f ) + servo->PID.samplePeriod * 0.001f );
+									  ( 2.0f * ( filter ) - time ) * servo->PID.differentaitor ) /
+									  ( 2.0f * ( filter ) + time );
 
 	/*   Calculate PID output   */
 	servo->PID.output = (int16_t) ( servo->PID.proportinal + servo->PID.integrator + servo->PID.differentaitor);

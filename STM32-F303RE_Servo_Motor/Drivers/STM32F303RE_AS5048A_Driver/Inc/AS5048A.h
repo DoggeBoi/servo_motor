@@ -18,8 +18,8 @@
 #define SPI_COM_OK 				0
 #define SPI_COM_FAIL 			1
 
-/*   Max SPI timeout define*/
-#define	AS5048A_MAX_DELAY		50
+/*   Max SPI timeout define   */
+#define	AS5048A_MAX_DELAY		3
 
 typedef struct {
 

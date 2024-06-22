@@ -73,8 +73,6 @@ void Error_Handler(void);
 #define BATTERY_VOLTAGE_GPIO_Port GPIOB
 #define SPI2_CS_Pin GPIO_PIN_11
 #define SPI2_CS_GPIO_Port GPIOB
-#define Loop_time_Pin GPIO_PIN_7
-#define Loop_time_GPIO_Port GPIOC
 #define hswB_Pin GPIO_PIN_8
 #define hswB_GPIO_Port GPIOA
 #define hswA_Pin GPIO_PIN_9

@@ -63,7 +63,7 @@ void AS5048A_ReadRegister(AS5048A *encoder, uint16_t regAddr, uint16_t * data) {
 	uint16_t RxBuf[] = {AS5048A_NOP};
 
 	/*   Set command transmission package   */
-	TxBuf[0]  = ( regAddr | ( 0x0001 << 14 ) );					// Sets Command Package address and read bit
+	TxBuf[0]  = ( regAddr | ( 1 << 14 ) );					// Sets Command Package address and read bit
 	TxBuf[0] |= ( CalcParityEven( TxBuf[0] ) << 15 );			// Sets Command Package parity bit
 
 	/*   Transmit command package   */
@@ -84,7 +84,7 @@ void AS5048A_WriteRegister(AS5048A *encoder, uint16_t regAddr, uint16_t data) {
 	uint16_t TxBuf[] = {AS5048A_NOP};
 	uint16_t RxBuf[] = {AS5048A_NOP};
 
-	/*   Set read transmission package   */
+	/*   Set command transmission package   */
 	TxBuf[0] = ( regAddr | CalcParityEven( regAddr ) << 15 );	// Sets Command Package parity bit
 
 	/*   Transmit command package   */
@@ -161,7 +161,6 @@ void AS5048A_Receive(AS5048A *encoder, uint16_t *RxBuf){
 	HAL_SPI_Receive(encoder->spiHandle, (uint8_t*)RxBuf, 1, AS5048A_MAX_DELAY);
 
 	HAL_GPIO_WritePin(encoder->csPort, encoder->csPin, GPIO_PIN_SET);
-
 
 }
 
