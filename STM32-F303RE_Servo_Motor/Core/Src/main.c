@@ -27,6 +27,7 @@
 #include "ADC.h"
 #include "HBRIDGE.h"
 #include "CAN.h"
+#include "LSM6DSO.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -91,6 +92,7 @@ void StartServoUpdateTask(void const * argument);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 uint16_t count = 0;
+LSM6DSO imu;
 /* USER CODE END 0 */
 
 /**
@@ -145,7 +147,7 @@ int main(void)
   sensorsInit	(&servo, &hadc1, &hadc2, &hadc3, &hadc4);
   pidInit		(&servo, 3000, 1000, 250, 100);
 
-
+  LSM6DSO_Init(&imu, &hspi2, SPI2_CS_GPIO_Port, SPI2_CS_Pin, servo.PID.samplePeriod);
 
 
   servo.torqueEnable 					= SERVO_TORQUE_ENABLE;
@@ -761,7 +763,7 @@ static void MX_GPIO_Init(void)
 void StartServoUpdateTask(void const * argument)
 {
   /* USER CODE BEGIN 5 */
-	char str[16];
+	char str[32];
 
 
   /* Infinite loop */
@@ -776,8 +778,11 @@ void StartServoUpdateTask(void const * argument)
 	motionPorfile	(&servo, 4);
 	pidUpdate		(&servo);
 	motorUpdatePWM	(&servo);
+	LSM6DSO_ReadSensors(&imu);
+	LSM6DSO_EstimateOrientation(&imu);
 
-	sprintf(str, "%.2f \t %.2f \t\n", servo.encoder.angle * 1.0f, servo.PID.setPoint * 1.0f);
+	//sprintf(str, "%.2f \t %.2f \t\n", servo.encoder.angle * 1.0f, servo.PID.setPoint * 1.0f);
+	sprintf(str, "%.3f \t %.3f \t\n", imu.intAngleX, imu.intAngleY);
 	HAL_UART_Transmit(&huart2, (uint8_t *)str, strlen((char*)str), HAL_MAX_DELAY);
 
 
@@ -785,11 +790,11 @@ void StartServoUpdateTask(void const * argument)
 	 // Test motion
 	 	 count += 1;
 	 	 if (count == 0 ){
-	 		 	servo.goalPosition  = 5855;
+	 		 			servo.goalPosition  = 5855;
 
 	 	 	}
 	 	 if (count == 200 ){
-	 			 	servo.goalPosition  = 6048;
+	 			 		servo.goalPosition  = 6048;
 
 	 		 	}
 	 	 if (count == 400 ){

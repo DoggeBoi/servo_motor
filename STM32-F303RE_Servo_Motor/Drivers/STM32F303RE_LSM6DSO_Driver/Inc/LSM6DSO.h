@@ -30,9 +30,13 @@
 /*   Max SPI timeout define   */
 #define LSM6DSO_MAX_DELAY 3
 
-
 /*   Base parameters   */
-#define LSM6DSO_FILTER_COEFFICIENT 51 	// 0.2
+#define LSM6DSO_CFILTER_COEFFICIENT 	51 		// 	 0.02
+#define LSM6DSO_IIRFILTER_COEFFICIENT 	210 	// ~
+
+/*   Conversion factors from datasheet   */
+#define LA_So_2g						0.000061f
+#define G_So_500dps						0.00875f
 
 typedef struct {
 
@@ -51,9 +55,12 @@ typedef struct {
 	float 				angularVelocityY;
 	float 				angularVelocityZ;
 
+	/*   IIR filter paremters   */
+	uint8_t				extIIRFilterCoefficient;	// 0 - 255, 0 - 1
+
 	/*   Complementary filter parameters   */
 	uint8_t 			extSampleTime;			// in ms
-	uint8_t				extFilterCoefficient;	// 0 - 255, 0 - 0.1
+	uint8_t				extCFilterCoefficient;	// 0 - 255, 0 - 0.1
 
 	/*   Complementary filter internal output values   */
 	float				intAngleX;
@@ -67,7 +74,7 @@ typedef struct {
 
 
 /*   Initialisation   */
-uint8_t LSM6DSO_Init(LSM6DSO *imu, SPI_HandleTypeDef *spiHandle, GPIO_TypeDef *csPort, uint16_t csPin);
+uint8_t LSM6DSO_Init(LSM6DSO *imu, SPI_HandleTypeDef *spiHandle, GPIO_TypeDef *csPort, uint16_t csPin, uint8_t sampleTime);
 
 /*   SPI transmit / receive and chip select control function   */
 void LSM6DSO_TransmitReceive(LSM6DSO *imu, uint8_t *TxBuf, uint8_t *RxBuf, uint8_t lenght);
@@ -84,6 +91,8 @@ void LSM6DSO_ReadGyroscope(LSM6DSO *imu);
 /*   Complementary filter   */
 void LSM6DSO_EstimateOrientation(LSM6DSO *imu);
 
+/*   Acceleration clamping limiter   */
+float accelerationLimiter(float acceleration);
 
 
 #endif /* STM32F303RE_LSM6DSO_DRIVER_INC_LSM6DSO_H */

@@ -3,19 +3,23 @@
 #include <math.h>
 
 
-uint8_t LSM6DSO_Init(LSM6DSO *imu, SPI_HandleTypeDef *spiHandle, GPIO_TypeDef *csPort, uint16_t csPin) {
+uint8_t LSM6DSO_Init(LSM6DSO *imu, SPI_HandleTypeDef *spiHandle, GPIO_TypeDef *csPort, uint16_t csPin, uint8_t sampleTime) {
 
 	/*   Store parameters in struct   */
-	imu->spiHandle 				= 	spiHandle;
-	imu->csPort					=	csPort;
-	imu->csPin					=	csPin;
+	imu->spiHandle 					= 	spiHandle;
+	imu->csPort						=	csPort;
+	imu->csPin						=	csPin;
 
 	/*   Set base parameters   */
-	imu->extFilterCoefficient 	= LSM6DSO_FILTER_COEFFICIENT;
+	imu->extCFilterCoefficient 		= LSM6DSO_CFILTER_COEFFICIENT;
+	imu->extIIRFilterCoefficient	= LSM6DSO_IIRFILTER_COEFFICIENT;
+
+	/*   Sample time   */
+	imu->extSampleTime 				= sampleTime;
 
 	/*   Initialise previous calculation terms   */
-	imu->intAngleX = 0;
-	imu->intAngleY = 0;
+	imu->intAngleX 					= 0;
+	imu->intAngleY 					= 0;
 
 
 	/*   Chip select default inactive high   */
@@ -25,10 +29,10 @@ uint8_t LSM6DSO_Init(LSM6DSO *imu, SPI_HandleTypeDef *spiHandle, GPIO_TypeDef *c
 	HAL_Delay(20);
 
 	/*   Activate accelerometer   */
-	LSM6DSO_WriteRegister(imu, LSM6DSO_CTRL1_XL, 0x60);		// Accelerometer 416Hz, +-2g, no secondary LPF filtering
+	LSM6DSO_WriteRegister(imu, LSM6DSO_CTRL1_XL, 0x71);		// Accelerometer 833Hz, +-2g, secondary LPF filtering
 
 	/*   Activate gyroscope   */
-	LSM6DSO_WriteRegister(imu, LSM6DSO_CTRL2_G, 0x60);		// Gyroscope 416Hz +-250 dps, no secondary LPF filtering
+	LSM6DSO_WriteRegister(imu, LSM6DSO_CTRL2_G, 0x74);		// Gyroscope 833Hz +-500 dps
 
 
 	return 1; //TEMP
@@ -90,8 +94,11 @@ void LSM6DSO_ReadAccelerometer(LSM6DSO *imu) {
 	int16_t registerY;
 	int16_t registerZ;
 
+	/*   Calculate internal filter value from external    */
+	float alpha				= imu->extIIRFilterCoefficient / 255.0f;					// Convert Filter-coeffiectnt to alpha
+
 	/*   Conversion factor calculation ( m/s^2 )   */
-	float convertionFactor  = ( 9.81f * 2.0f / ( 2 << 15 ) );		// For +-2g
+	float convertionFactor  = 9.81f * LA_So_2g;		// For +-2g
 
 	/*   Read accelerometer data   */
 	LSM6DSO_ReadRegister(imu, LSM6DSO_OUTX_L_A, ( (uint8_t *)&registerX ) );
@@ -100,13 +107,13 @@ void LSM6DSO_ReadAccelerometer(LSM6DSO *imu) {
 	LSM6DSO_ReadRegister(imu, LSM6DSO_OUTY_L_A, ( (uint8_t *)&registerY ) );
 	LSM6DSO_ReadRegister(imu, LSM6DSO_OUTY_H_A, ( (uint8_t *)&registerY + 1 ) );
 
-	LSM6DSO_ReadRegister(imu, LSM6DSO_OUTY_L_A, ( (uint8_t *)&registerZ ) );
-	LSM6DSO_ReadRegister(imu, LSM6DSO_OUTY_H_A, ( (uint8_t *)&registerZ + 1 ) );
+	LSM6DSO_ReadRegister(imu, LSM6DSO_OUTZ_L_A, ( (uint8_t *)&registerZ ) );
+	LSM6DSO_ReadRegister(imu, LSM6DSO_OUTZ_H_A, ( (uint8_t *)&registerZ + 1 ) );
 
 	/*   Update values in struct   */
-	imu->acclerationX = registerX * convertionFactor;
-	imu->acclerationY = registerY * convertionFactor;
-	imu->acclerationZ = registerZ * convertionFactor;
+	imu->acclerationX = accelerationLimiter( ( 1.0f - alpha ) * registerX * convertionFactor + alpha * imu->acclerationX );
+	imu->acclerationY = accelerationLimiter( ( 1.0f - alpha ) * registerY * convertionFactor + alpha * imu->acclerationY );
+	imu->acclerationZ = accelerationLimiter( ( 1.0f - alpha ) * registerZ * convertionFactor + alpha * imu->acclerationZ );
 
 }
 
@@ -119,7 +126,7 @@ void LSM6DSO_ReadGyroscope(LSM6DSO *imu) {
 	int16_t registerZ;
 
 	/*   Conversion factor calculation ( radians/s )   */
-	float convertionFactor  = ( 3.141592f / 180.0f );			// For +-250dps
+	float convertionFactor  = G_So_500dps * ( 3.141592f / 180.0f );			// For +-500dps
 
 	/*   Read gyroscope data   */
 	LSM6DSO_ReadRegister(imu, LSM6DSO_OUTX_L_G, ( (uint8_t *)&registerX ) );
@@ -128,8 +135,8 @@ void LSM6DSO_ReadGyroscope(LSM6DSO *imu) {
 	LSM6DSO_ReadRegister(imu, LSM6DSO_OUTY_L_G, ( (uint8_t *)&registerY ) );
 	LSM6DSO_ReadRegister(imu, LSM6DSO_OUTY_H_G, ( (uint8_t *)&registerY + 1 ) );
 
-	LSM6DSO_ReadRegister(imu, LSM6DSO_OUTY_L_G, ( (uint8_t *)&registerZ ) );
-	LSM6DSO_ReadRegister(imu, LSM6DSO_OUTY_H_G, ( (uint8_t *)&registerZ + 1 ) );
+	LSM6DSO_ReadRegister(imu, LSM6DSO_OUTZ_L_G, ( (uint8_t *)&registerZ ) );
+	LSM6DSO_ReadRegister(imu, LSM6DSO_OUTZ_H_G, ( (uint8_t *)&registerZ + 1 ) );
 
 	/*   Update values in struct   */
 	imu->angularVelocityX = registerX * convertionFactor;
@@ -151,9 +158,14 @@ void LSM6DSO_ReadSensors(LSM6DSO *imu) {
 	if ( registerData & 0x1 ) {
 
 		LSM6DSO_ReadAccelerometer(imu);
-		LSM6DSO_ReadGyroscope(imu);
 
 	}
+
+	if ( registerData & 0x2 ) {
+
+			LSM6DSO_ReadGyroscope(imu);
+
+		}
 
 }
 
@@ -165,8 +177,8 @@ void LSM6DSO_EstimateOrientation(LSM6DSO *imu) {
 	float convertionFactor  = ( 32768.0f / 3.141592f );							// For +- 1 radian
 
 	/*   Calculate internal filter value from external    */
-	float alpha			= imu->extFilterCoefficient / 2550.0f;					// Convert Filter-coeffiectnt to alpha
-	float time			= imu->extSampleTime 		/ 1000.0f;					// Convert ms to s
+	float alpha			= imu->extCFilterCoefficient	/ 2550.0f;					// Convert Filter-coeffiectnt to alpha
+	float time			= imu->extSampleTime 			/ 1000.0f;					// Convert ms to s
 
 	/*   Inertial frame of reference angle estimation   */
 	float accelAngleX 	= atanf( imu->acclerationY 	/ imu->acclerationZ );		// Roll calculation
@@ -177,11 +189,27 @@ void LSM6DSO_EstimateOrientation(LSM6DSO *imu) {
 	float gyroAngleY 	= imu->angularVelocityY * cosf(imu->intAngleX) - sinf(imu->intAngleX) * imu->angularVelocityZ;
 
 	/*   Complementary filter calculation   */
-	imu->intAngleX		= accelAngleX * alpha + ( 1 - alpha ) * ( imu->intAngleX + time * gyroAngleX );
-	imu->intAngleY 		= accelAngleY * alpha + ( 1 - alpha ) * ( imu->intAngleY + time * gyroAngleY );
+	imu->intAngleX		= accelAngleX * alpha + ( 1.0f - alpha ) * ( imu->intAngleX + time * gyroAngleX );
+	imu->intAngleY 		= accelAngleY * alpha + ( 1.0f - alpha ) * ( imu->intAngleY + time * gyroAngleY );
 
 	/*   Convert radians to int16   */
 	imu->extAngleX = imu->intAngleX * convertionFactor;
 	imu->extAngleY = imu->intAngleY * convertionFactor;
+
+}
+
+
+/*   Acceleration clamping limiter   */
+float accelerationLimiter(float acceleration) {
+
+	/*   If acceleration is above gravity   */
+	if ( fabs( acceleration ) > 9.80f ) {
+
+		return ( 9.80f * ( ( acceleration >= 0 ) ? 1 : -1 ) );
+
+	}
+
+	/*   If acceleration is within limit   */
+	return acceleration;
 
 }
