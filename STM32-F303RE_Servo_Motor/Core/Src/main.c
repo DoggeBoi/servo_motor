@@ -92,7 +92,7 @@ void StartServoUpdateTask(void const * argument);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 uint16_t count = 0;
-LSM6DSO imu;
+
 /* USER CODE END 0 */
 
 /**
@@ -142,12 +142,12 @@ int main(void)
 
   /*   Initialisation sequence   */
   servoInit		(&servo);
-  encoderInit	(&servo, &hspi1, GPIOB, SPI1_CS_Pin);
+  encoderInit	(&servo, &hspi1, SPI1_CS_GPIO_Port, SPI1_CS_Pin);
   motorInit		(&servo, &htim2, TIM_CHANNEL_1, hswA_GPIO_Port, hswA_Pin, hswB_GPIO_Port, hswB_Pin);
   sensorsInit	(&servo, &hadc1, &hadc2, &hadc3, &hadc4);
   pidInit		(&servo, 3000, 1000, 250, 100);
+  imuInit(&servo, &hspi2, SPI2_CS_GPIO_Port, SPI2_CS_Pin);
 
-  LSM6DSO_Init(&imu, &hspi2, SPI2_CS_GPIO_Port, SPI2_CS_Pin, servo.PID.samplePeriod);
 
 
   servo.torqueEnable 					= SERVO_TORQUE_ENABLE;
@@ -778,11 +778,10 @@ void StartServoUpdateTask(void const * argument)
 	motionPorfile	(&servo, 4);
 	pidUpdate		(&servo);
 	motorUpdatePWM	(&servo);
-	LSM6DSO_ReadSensors(&imu);
-	LSM6DSO_EstimateOrientation(&imu);
+	imuUpdateAngle(&servo);
 
 	//sprintf(str, "%.2f \t %.2f \t\n", servo.encoder.angle * 1.0f, servo.PID.setPoint * 1.0f);
-	sprintf(str, "%.3f \t %.3f \t\n", 1.0f * imu.extAngleX, 1.0f * imu.extAngleY);
+	sprintf(str, "%.3f \t %.3f \t\n", 1.0f * servo.imu.extAngleX, 1.0f * servo.imu.extAngleY);
 	HAL_UART_Transmit(&huart2, (uint8_t *)str, strlen((char*)str), HAL_MAX_DELAY);
 
 

@@ -415,12 +415,34 @@ void motionPorfile(SERVO_CONTROL *servo, uint8_t timeStep) {
 
 }
 
+
+/*   IMU initialisations   */
+void imuInit(SERVO_CONTROL *servo, SPI_HandleTypeDef *spiHandle, GPIO_TypeDef *csPort, uint16_t csPin) {
+
+	LSM6DSO_Init(&servo->imu, spiHandle, csPort , csPin, servo->PID.samplePeriod);
+
+}
+
+
+
+void imuUpdateAngle(SERVO_CONTROL *servo) {
+
+	/*   Read and update sensor data   */
+	LSM6DSO_ReadSensors(&servo->imu);
+
+	/*   Calculate angles from complementary filter   */
+	LSM6DSO_EstimateOrientation(&servo->imu);
+
+}
+
+
 /*   Motor power control functions   */
 void torqueDisable(SERVO_CONTROL *servo) {
 
 	servo->torqueEnable = SERVO_TORQUE_DISABLE;
 
 }
+
 
 void torqueEnable(SERVO_CONTROL *servo) {
 

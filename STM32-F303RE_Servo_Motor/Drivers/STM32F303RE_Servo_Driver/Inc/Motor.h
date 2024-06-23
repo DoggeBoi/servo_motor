@@ -7,6 +7,7 @@
 #include "ADC.h"
 #include "HBRIDGE.h"
 #include "CAN.h"
+#include "LSM6DSO.h"
 
 /*   Default values   */
 
@@ -196,6 +197,9 @@ typedef struct {
 	/*   CAN bus   */
 	CANBUS 		can;
 
+	/*   Inertial measurement unit   */
+	LSM6DSO imu;
+
 	/*   Motion status  */
 //	int16_t 	load;										// Switches signs in CW vs CCW
 	int16_t   	velocity;
@@ -238,8 +242,16 @@ void encoderUpdate(SERVO_CONTROL *servo);
 void motorInit(SERVO_CONTROL *servo, TIM_HandleTypeDef *timHandle, uint8_t timChannel, GPIO_TypeDef *hswAPort, uint16_t hswAPin, GPIO_TypeDef *hswBPort, uint16_t hswBPin);
 
 
-/*   ADC sensors initialisations   */
+/*   ADC sensors initialisation   */
 void sensorsInit(SERVO_CONTROL *servo, ADC_HandleTypeDef *adcHandle0, ADC_HandleTypeDef *adcHandle1, ADC_HandleTypeDef *adcHandle2, ADC_HandleTypeDef *adcHandle3);
+
+
+/*   IMU initialisation   */
+void imuInit(SERVO_CONTROL *servo, SPI_HandleTypeDef *spiHandle, GPIO_TypeDef *csPort, uint16_t csPin);
+
+
+/*   IMU angle update and cacluation   */
+void imuUpdateAngle(SERVO_CONTROL *servo);
 
 
 /*   ADC sensors read   */
@@ -260,6 +272,7 @@ void errorHandeler(SERVO_CONTROL *servo);
 
 /*   Motor power control functions   */
 void torqueDisable(SERVO_CONTROL *servo);
+
 
 void torqueEnable(SERVO_CONTROL *servo);
 
