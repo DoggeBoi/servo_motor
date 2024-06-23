@@ -15,7 +15,7 @@ This repository contains a proof-of-concept project demonstrating the control of
 # To-be-added
 - ~~RTOS implementation~~. 20/06/24
 - Automatic shutdown in case of detected failure.
-- LSM6SDO 3-axis angle sensing using 6-axis IMU and a complementary filter.
+- ~~LSM6SDO 3-axis angle sensing using 6-axis IMU and a complementary filter~~ 23/06/24.
 - Current sensing using internal opamp.
 - Complete CAN driver with exact memory mapping.
 
