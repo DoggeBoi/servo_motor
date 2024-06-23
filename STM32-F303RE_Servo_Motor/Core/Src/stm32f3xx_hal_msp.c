@@ -117,16 +117,6 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef* hadc)
     if(HAL_RCC_ADC12_CLK_ENABLED==1){
       __HAL_RCC_ADC12_CLK_ENABLE();
     }
-
-    __HAL_RCC_GPIOA_CLK_ENABLE();
-    /**ADC2 GPIO Configuration
-    PA4     ------> ADC2_IN1
-    */
-    GPIO_InitStruct.Pin = MOTOR_TEMP_Pin;
-    GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
-    GPIO_InitStruct.Pull = GPIO_NOPULL;
-    HAL_GPIO_Init(MOTOR_TEMP_GPIO_Port, &GPIO_InitStruct);
-
   /* USER CODE BEGIN ADC2_MspInit 1 */
 
   /* USER CODE END ADC2_MspInit 1 */
@@ -170,10 +160,10 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef* hadc)
     /**ADC4 GPIO Configuration
     PB12     ------> ADC4_IN3
     */
-    GPIO_InitStruct.Pin = CURRENT_SENSE_Pin;
+    GPIO_InitStruct.Pin = GPIO_PIN_12;
     GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
-    HAL_GPIO_Init(CURRENT_SENSE_GPIO_Port, &GPIO_InitStruct);
+    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /* USER CODE BEGIN ADC4_MspInit 1 */
 
@@ -214,12 +204,6 @@ void HAL_ADC_MspDeInit(ADC_HandleTypeDef* hadc)
     if(HAL_RCC_ADC12_CLK_ENABLED==0){
       __HAL_RCC_ADC12_CLK_DISABLE();
     }
-
-    /**ADC2 GPIO Configuration
-    PA4     ------> ADC2_IN1
-    */
-    HAL_GPIO_DeInit(MOTOR_TEMP_GPIO_Port, MOTOR_TEMP_Pin);
-
   /* USER CODE BEGIN ADC2_MspDeInit 1 */
 
   /* USER CODE END ADC2_MspDeInit 1 */
@@ -258,7 +242,7 @@ void HAL_ADC_MspDeInit(ADC_HandleTypeDef* hadc)
     /**ADC4 GPIO Configuration
     PB12     ------> ADC4_IN3
     */
-    HAL_GPIO_DeInit(CURRENT_SENSE_GPIO_Port, CURRENT_SENSE_Pin);
+    HAL_GPIO_DeInit(GPIOB, GPIO_PIN_12);
 
   /* USER CODE BEGIN ADC4_MspDeInit 1 */
 
@@ -341,6 +325,73 @@ void HAL_CAN_MspDeInit(CAN_HandleTypeDef* hcan)
 }
 
 /**
+* @brief OPAMP MSP Initialization
+* This function configures the hardware resources used in this example
+* @param hopamp: OPAMP handle pointer
+* @retval None
+*/
+void HAL_OPAMP_MspInit(OPAMP_HandleTypeDef* hopamp)
+{
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
+  if(hopamp->Instance==OPAMP2)
+  {
+  /* USER CODE BEGIN OPAMP2_MspInit 0 */
+
+  /* USER CODE END OPAMP2_MspInit 0 */
+
+    __HAL_RCC_GPIOA_CLK_ENABLE();
+    __HAL_RCC_GPIOB_CLK_ENABLE();
+    /**OPAMP2 GPIO Configuration
+    PA6     ------> OPAMP2_VOUT
+    PB0     ------> OPAMP2_VINP
+    */
+    GPIO_InitStruct.Pin = GPIO_PIN_6;
+    GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+    GPIO_InitStruct.Pin = GPIO_PIN_0;
+    GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /* USER CODE BEGIN OPAMP2_MspInit 1 */
+
+  /* USER CODE END OPAMP2_MspInit 1 */
+  }
+
+}
+
+/**
+* @brief OPAMP MSP De-Initialization
+* This function freeze the hardware resources used in this example
+* @param hopamp: OPAMP handle pointer
+* @retval None
+*/
+void HAL_OPAMP_MspDeInit(OPAMP_HandleTypeDef* hopamp)
+{
+  if(hopamp->Instance==OPAMP2)
+  {
+  /* USER CODE BEGIN OPAMP2_MspDeInit 0 */
+
+  /* USER CODE END OPAMP2_MspDeInit 0 */
+
+    /**OPAMP2 GPIO Configuration
+    PA6     ------> OPAMP2_VOUT
+    PB0     ------> OPAMP2_VINP
+    */
+    HAL_GPIO_DeInit(GPIOA, GPIO_PIN_6);
+
+    HAL_GPIO_DeInit(GPIOB, GPIO_PIN_0);
+
+  /* USER CODE BEGIN OPAMP2_MspDeInit 1 */
+
+  /* USER CODE END OPAMP2_MspDeInit 1 */
+  }
+
+}
+
+/**
 * @brief SPI MSP Initialization
 * This function configures the hardware resources used in this example
 * @param hspi: SPI handle pointer
@@ -358,17 +409,25 @@ void HAL_SPI_MspInit(SPI_HandleTypeDef* hspi)
     __HAL_RCC_SPI1_CLK_ENABLE();
 
     __HAL_RCC_GPIOA_CLK_ENABLE();
+    __HAL_RCC_GPIOB_CLK_ENABLE();
     /**SPI1 GPIO Configuration
     PA5     ------> SPI1_SCK
-    PA6     ------> SPI1_MISO
     PA7     ------> SPI1_MOSI
+    PB4     ------> SPI1_MISO
     */
-    GPIO_InitStruct.Pin = GPIO_PIN_5|GPIO_PIN_6|GPIO_PIN_7;
+    GPIO_InitStruct.Pin = GPIO_PIN_5|GPIO_PIN_7;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
     GPIO_InitStruct.Alternate = GPIO_AF5_SPI1;
     HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+    GPIO_InitStruct.Pin = GPIO_PIN_4;
+    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+    GPIO_InitStruct.Alternate = GPIO_AF5_SPI1;
+    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /* USER CODE BEGIN SPI1_MspInit 1 */
 
@@ -420,10 +479,12 @@ void HAL_SPI_MspDeInit(SPI_HandleTypeDef* hspi)
 
     /**SPI1 GPIO Configuration
     PA5     ------> SPI1_SCK
-    PA6     ------> SPI1_MISO
     PA7     ------> SPI1_MOSI
+    PB4     ------> SPI1_MISO
     */
-    HAL_GPIO_DeInit(GPIOA, GPIO_PIN_5|GPIO_PIN_6|GPIO_PIN_7);
+    HAL_GPIO_DeInit(GPIOA, GPIO_PIN_5|GPIO_PIN_7);
+
+    HAL_GPIO_DeInit(GPIOB, GPIO_PIN_4);
 
   /* USER CODE BEGIN SPI1_MspDeInit 1 */
 

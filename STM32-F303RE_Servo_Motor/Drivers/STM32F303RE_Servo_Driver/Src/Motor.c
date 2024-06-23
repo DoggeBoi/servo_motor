@@ -19,7 +19,7 @@ void servoInit(SERVO_CONTROL *servo) {
 	servo->torqueEnable 					= SERVO_TORQUE_DISABLE;
 
 	/*   Initialise motion variables   */
-	servo->motionDirection				 	= SERVO_DIRECTION_CCW;
+	servo->motionDirection				 	= SERVO_DIRECTION_CW;
 	servo->motionThreshold 					= SERVO_MOTION_THRESHOLD;
 	servo->profile.followingThreshold 		= SERVO_FOLLOWING_THRESHOLD;
 
@@ -77,16 +77,19 @@ void motorInit(SERVO_CONTROL *servo, TIM_HandleTypeDef *timHandle, uint8_t timCh
 
 
 /*   ADC sensors initialisations   */
-void sensorsInit(SERVO_CONTROL *servo, ADC_HandleTypeDef *adcHandle0, ADC_HandleTypeDef *adcHandle1, ADC_HandleTypeDef *adcHandle2, ADC_HandleTypeDef *adcHandle3) {
+void sensorsInit(SERVO_CONTROL *servo, ADC_HandleTypeDef *adcHandle0, ADC_HandleTypeDef *adcHandle1, ADC_HandleTypeDef *adcHandle2, ADC_HandleTypeDef *adcHandle3, OPAMP_HandleTypeDef *hopamp) {
 
+	/*   Initialise sensor ADCs   */
 	adcSensorInit(&servo->intTemp, 			rawToIntTemp, 	adcHandle0);
 
-	adcSensorInit(&servo->motorTemp, 		rawToMotorTemp, adcHandle1);
+	adcSensorInit(&servo->motorCurrent,	 	rawToCurrent, 	adcHandle1);
 
 	adcSensorInit(&servo->batteryVoltage, 	rawToVoltage, 	adcHandle2);
 
-	adcSensorInit(&servo->motorCurrent,	 	rawToCurrent, 	adcHandle3);
+	adcSensorInit(&servo->motorTemp, 		rawToMotorTemp, adcHandle3);
 
+	/*   Start current sensing opamp   */
+	HAL_OPAMP_Start(hopamp);
 }
 
 
@@ -175,18 +178,18 @@ void pidUpdate(SERVO_CONTROL *servo) {
 
 	/*   Calculate velocity   */
 	servo->velocity 	  		= ( ( 2.0f * ( servo->PID.Input - servo->PID.prevInput ) ) +
-			  	  	  	  	  	    ( 2.0f * ( filter ) - time ) * servo->velocity ) /
-			  	  	  	  	  	    ( 2.0f * ( filter ) + time );
+			  	  	  	  	  	    ( 2.0f * filter - time ) * servo->velocity ) /
+			  	  	  	  	  	    ( 2.0f * filter + time );
 
 	/*   Calculate acceleration   */
 	servo->acceleration 	  	= ( ( 2.0f * ( servo->velocity   - servo->prevVelocity ) ) +
-  	  	  	    					( 2.0f * ( filter ) - time ) * servo->acceleration ) /
-  	  	  	    					( 2.0f * ( filter ) + time );
+  	  	  	    					( 2.0f * filter - time ) * servo->acceleration ) /
+  	  	  	    					( 2.0f * filter + time );
 
-	/*   Calculate PID differentaitor term   */					// Differentaitor is wrong way for some reason.... Negating w -100000.0f
-	servo->PID.differentaitor 	= 	( ( 2.0f * ( servo->PID.Kd / -100000.0f )  * ( servo->PID.Input - servo->PID.prevInput ) ) +
-									  ( 2.0f * ( filter ) - time ) * servo->PID.differentaitor ) /
-									  ( 2.0f * ( filter ) + time );
+	/*   Calculate PID differentaitor term   */
+	servo->PID.differentaitor 	= 	( ( 2.0f * ( servo->PID.Kd / 100000.0f )  * ( servo->PID.Error - servo->PID.prevError ) ) +
+									  ( 2.0f * filter - time ) * servo->PID.differentaitor ) /
+									  ( 2.0f * filter + time );
 
 	/*   Calculate PID output   */
 	servo->PID.output = (int16_t) ( servo->PID.proportinal + servo->PID.integrator + servo->PID.differentaitor);
@@ -241,7 +244,7 @@ void sensorsUpdate(SERVO_CONTROL *servo) {
 
 
 /*   Motion profile calculation    */
-void motionPorfile(SERVO_CONTROL *servo, uint8_t timeStep) {
+void motionPorfile(SERVO_CONTROL *servo) {
 
 	/*   Motion profile calculation phase duration calculation   */
 	if ( ( servo->goalPosition != servo->profile.trajectoryGoalPosition ) || (servo->profile.trajectorySplit == SERVO_PROFILE_SPLIT_2 ) ) {
@@ -408,7 +411,7 @@ void motionPorfile(SERVO_CONTROL *servo, uint8_t timeStep) {
 
 
 	/*   Increment trajectory time   */
-	servo->profile.trajectoryTime += 4 * !!servo->profile.trajectoryStatus;				// Increment by time step (ms) if trajectory is not yet complete.
+	servo->profile.trajectoryTime += servo->PID.samplePeriod * !!servo->profile.trajectoryStatus;				// Increment by time step (ms) if trajectory is not yet complete.
 
 	/*   Update trajectoryFollowing variable   */
 	servo->profile.trajectoryFollowing = ( abs( servo->PID.setPoint - servo->encoder.angle ) <= servo->profile.followingThreshold );

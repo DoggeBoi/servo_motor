@@ -26,9 +26,13 @@
 #define LSM6DSO_OUTZ_L_A    0x2C
 #define LSM6DSO_OUTZ_H_A    0x2D
 
+#define LSM6DSO_WHO_AM_I    0x0F
 
-/*   Max SPI timeout define   */
-#define LSM6DSO_MAX_DELAY 3
+
+/*   SPI defines   */
+#define LSM6DSO_MAX_DELAY 		3
+#define LSM6DSO_SPI_SUCCESS 	0
+#define LSM6DSO_SPI_FAIL		1
 
 /*   Base parameters   */
 #define LSM6DSO_CFILTER_COEFFICIENT 	51 		// 	 0.02

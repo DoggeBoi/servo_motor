@@ -61,11 +61,11 @@ int16_t rawToIntTemp(uint16_t rawData) {
 	float temp;
 
 	/*   Data to temperature conversion   */
-	voltage = ( rawData / 4095.0f ) * 3.3f;						// Calculate voltage from ADC measurement
+	voltage = ( rawData / 4095.0f ) * 3.3f;							// Calculate voltage from ADC measurement
 	temp	= ( ( ( 1.43f - voltage ) / 0.0043f ) + 15.0f );
 
 	/*   Convert and return data   */
-	return (int16_t) ( temp * 100.0f );							//  1/100 of a degree
+	return (int16_t) ( temp * 100.0f );								//  1/100 of a degree
 
 }
 
@@ -77,11 +77,11 @@ int16_t rawToMotorTemp(uint16_t rawData) {
 	float temp;
 
 	/*   Data to temperature conversion   */
-	voltage 	= ( rawData / 4095.0f ) * 3.3f;						// Calculate voltage from ADC measurement
+	voltage 	= ( rawData / 4095.0f ) * 3.3f;							// Calculate voltage from ADC measurement
 	impedance	= ( 100000.0f / ( ( 3.3f / voltage ) - 1.0f ) );		// NTC resistance from voltage splitter
 	temp		= ( 1.0f / ( ( ( log( impedance / 100000.0f ) ) / ( 3950.0f ) ) + ( 1.0f / 298.15f ) ) ) - 273.15f;											// Calculate NTC temp from resistance
 
-	return (int16_t) ( temp * 100.0f );								//  1/100 of a degree
+	return (int16_t) ( temp * 100.0f );									//  1/100 of a degree
 
 }
 
@@ -92,14 +92,23 @@ int16_t rawToVoltage(uint16_t rawData) {
 	float batteryVoltage;
 
 	/*   Data to temperature conversion   */
-	voltage 	= ( rawData / 4095.0f ) * 3.3f;						// Calculate voltage from ADC measurement
+	voltage 	= ( rawData / 4095.0f ) * 3.3f;							// Calculate voltage from ADC measurement
 	batteryVoltage = voltage * ( ( 1.5f + 10.0f ) / 1.5f );
 
-	return (int16_t) ( batteryVoltage * 1000.00f );					//  mV
+	return (int16_t) ( batteryVoltage * 1000.00f );						//  mV
 
 }
 
 int16_t rawToCurrent(uint16_t rawData) {
-	return 0;
+
+	/*   Initialise variables   */
+	float voltage;
+	float test;
+
+	/*   Data to temperature conversion   */
+	voltage 	= ( rawData / 4095.0f ) * 3.3f;						// Calculate voltage from ADC measurement
+	test = voltage * 0.5f;
+
+	return (int16_t) ( test * 1000.00f );							//  mV
 }
 

@@ -243,7 +243,7 @@ void motorInit(SERVO_CONTROL *servo, TIM_HandleTypeDef *timHandle, uint8_t timCh
 
 
 /*   ADC sensors initialisation   */
-void sensorsInit(SERVO_CONTROL *servo, ADC_HandleTypeDef *adcHandle0, ADC_HandleTypeDef *adcHandle1, ADC_HandleTypeDef *adcHandle2, ADC_HandleTypeDef *adcHandle3);
+void sensorsInit(SERVO_CONTROL *servo, ADC_HandleTypeDef *adcHandle0, ADC_HandleTypeDef *adcHandle1, ADC_HandleTypeDef *adcHandle2, ADC_HandleTypeDef *adcHandle3, OPAMP_HandleTypeDef *hopamp);
 
 
 /*   IMU initialisation   */
@@ -263,7 +263,7 @@ void sensorsCheck(SERVO_CONTROL *servo);
 
 
 /*   Motion profile calculation    */
-void motionPorfile(SERVO_CONTROL *servo, uint8_t timeStep);
+void motionPorfile(SERVO_CONTROL *servo);
 
 
 /*   General error handler   */

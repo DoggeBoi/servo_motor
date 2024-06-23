@@ -28,14 +28,22 @@ uint8_t LSM6DSO_Init(LSM6DSO *imu, SPI_HandleTypeDef *spiHandle, GPIO_TypeDef *c
 	/*	IMU startup   */
 	HAL_Delay(20);
 
+	/*   Initialise data variable   */
+	uint8_t registerData;
+
+	LSM6DSO_ReadRegister(imu, LSM6DSO_WHO_AM_I, &registerData);
+
+	/*   If communication has failed   */
+	if ( registerData != 0x6C ) return LSM6DSO_SPI_FAIL;
+
 	/*   Activate accelerometer   */
 	LSM6DSO_WriteRegister(imu, LSM6DSO_CTRL1_XL, 0x71);		// Accelerometer 833Hz, +-2g, secondary LPF filtering
 
 	/*   Activate gyroscope   */
 	LSM6DSO_WriteRegister(imu, LSM6DSO_CTRL2_G, 0x74);		// Gyroscope 833Hz +-500 dps
 
-
-	return 1; //TEMP
+	/*   If communication is successful   */
+	return LSM6DSO_SPI_SUCCESS;
 }
 
 
