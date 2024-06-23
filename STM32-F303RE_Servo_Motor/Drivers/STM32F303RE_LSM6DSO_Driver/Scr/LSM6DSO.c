@@ -181,7 +181,7 @@ void LSM6DSO_EstimateOrientation(LSM6DSO *imu) {
 	float time			= imu->extSampleTime 			/ 1000.0f;					// Convert ms to s
 
 	/*   Inertial frame of reference angle estimation   */
-	float accelAngleX 	= atanf( imu->acclerationY 	/ imu->acclerationZ );		// Roll calculation
+	float accelAngleX 	= atan2f(imu->acclerationY , imu->acclerationZ);		// Roll calculation
 	float accelAngleY 	= asinf( imu->acclerationX 	/ 9.81f );					// Pitch calculation
 
 	/*   Calculate Euler-rates   */

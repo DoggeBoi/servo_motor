@@ -782,7 +782,7 @@ void StartServoUpdateTask(void const * argument)
 	LSM6DSO_EstimateOrientation(&imu);
 
 	//sprintf(str, "%.2f \t %.2f \t\n", servo.encoder.angle * 1.0f, servo.PID.setPoint * 1.0f);
-	sprintf(str, "%.3f \t %.3f \t\n", imu.intAngleX, imu.intAngleY);
+	sprintf(str, "%.3f \t %.3f \t\n", 1.0f * imu.extAngleX, 1.0f * imu.extAngleY);
 	HAL_UART_Transmit(&huart2, (uint8_t *)str, strlen((char*)str), HAL_MAX_DELAY);
 
 
