@@ -103,7 +103,7 @@ void LSM6DSO_ReadAccelerometer(LSM6DSO *imu) {
 	int16_t registerZ;
 
 	/*   Calculate internal filter value from external    */
-	float alpha				= imu->extIIRFilterCoefficient / 255.0f;					// Convert Filter-coeffiectnt to alpha
+	float alpha				= imu->extIIRFilterCoefficient / 255.0f;					// Convert Filter-coefficient to alpha
 
 	/*   Conversion factor calculation ( m/s^2 )   */
 	float convertionFactor  = 9.81f * LA_So_2g;		// For +-2g
