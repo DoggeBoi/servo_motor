@@ -3,7 +3,10 @@
 #include <math.h>
 
 /*   Sensor Initialisation   */
-void adcSensorInit(ADC *sensor, ADC_Conversion_Func conversionFunction, ADC_HandleTypeDef *adcHandle) {
+uint8_t adcSensorInit(ADC *sensor, ADC_Conversion_Func conversionFunction, ADC_HandleTypeDef *adcHandle) {
+
+	/*   Initialise status variable   */
+	uint8_t status = 0;
 
 	/*   Initialise ADC handle   */
 	sensor->adcHandle = adcHandle;
@@ -12,10 +15,13 @@ void adcSensorInit(ADC *sensor, ADC_Conversion_Func conversionFunction, ADC_Hand
 	sensor->conversionFunction = conversionFunction;
 
 	/*	Calibrate ADC   */
-	HAL_ADCEx_Calibration_Start(adcHandle, ADC_SINGLE_ENDED);
+	status += HAL_ADCEx_Calibration_Start(adcHandle, ADC_SINGLE_ENDED);
 
 	/*   Calibration completion time   */
 	HAL_Delay(10);
+
+	/*   Retrun status variable   */
+	return status;
 
 }
 
@@ -107,8 +113,7 @@ int16_t rawToCurrent(uint16_t rawData) {
 
 	/*   Data to temperature conversion   */
 	voltage 	= ( rawData / 4095.0f ) * 3.3f;						// Calculate voltage from ADC measurement
-	test = voltage * 0.5f;
 
-	return (int16_t) ( test * 1000.00f );							//  mV
+	return (int16_t) ( voltage * 1000.00f );							//  mV
 }
 

@@ -28,7 +28,7 @@ typedef struct {
 } MOTOR;
 
 /*   Motor initialisation   */
-void pwmInit(MOTOR *motor, TIM_HandleTypeDef *timHandle, uint8_t timChannel, GPIO_TypeDef *hswAPort, uint16_t hswAPin, GPIO_TypeDef *hswBPort, uint16_t hswBPin, uint8_t frictionCompensation);
+uint8_t pwmInit(MOTOR *motor, TIM_HandleTypeDef *timHandle, uint8_t timChannel, GPIO_TypeDef *hswAPort, uint16_t hswAPin, GPIO_TypeDef *hswBPort, uint16_t hswBPin, uint8_t frictionCompensation);
 
 /*   PWM decomposition into magnitude and direction   */
 void motorPwmDecomp(MOTOR *motor, int16_t input, uint8_t enable, uint8_t direction);

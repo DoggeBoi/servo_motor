@@ -1,7 +1,10 @@
 
 #include "CAN.h"
 
-void CAN_Init(CANBUS *canbus, CAN_HandleTypeDef *canHandle, uint8_t canDeviceID) {
+uint8_t CAN_Init(CANBUS *canbus, CAN_HandleTypeDef *canHandle, uint8_t canDeviceID) {
+
+	/*   Initialise status variable   */
+	uint8_t status = 0;
 
 	/*   Initialise CAN parameters   */
 	canbus->canHandle 	= canHandle;
@@ -9,18 +12,23 @@ void CAN_Init(CANBUS *canbus, CAN_HandleTypeDef *canHandle, uint8_t canDeviceID)
 	canbus->canMasterID = CAN_MASTER_ID;
 
 	/*   Initialise CAN filter parameters   */
-	CAN_SetFilter(canbus);
+	status += CAN_SetFilter(canbus);
 
 	/*   Initialise CAN   */
-	HAL_CAN_Start(canbus->canHandle);
+	status += HAL_CAN_Start(canbus->canHandle);
 
 	/*   Activate callback functions   */
-	HAL_CAN_ActivateNotification(canbus->canHandle, CAN_IT_RX_FIFO0_MSG_PENDING);
-	HAL_CAN_ActivateNotification(canbus->canHandle, CAN_IT_RX_FIFO1_MSG_PENDING);
+	status += HAL_CAN_ActivateNotification(canbus->canHandle, CAN_IT_RX_FIFO0_MSG_PENDING);
+	status += HAL_CAN_ActivateNotification(canbus->canHandle, CAN_IT_RX_FIFO1_MSG_PENDING);
+
+	return status;
 
 }
 
-void CAN_SetFilter(CANBUS *canbus) {
+uint8_t CAN_SetFilter(CANBUS *canbus) {
+
+	/*   Initialise status variable   */
+	uint8_t status = 0;
 
 	/*   Initialise and calculate CAN id parameters   */
 	uint16_t FIFO0_ID = ( canbus->canDeviceID << 4 ) | (0 << 10);						// Set can ID bits, MSB 0 for high priority messages
@@ -59,8 +67,10 @@ void CAN_SetFilter(CANBUS *canbus) {
 	CAN_Filterconfig_FIFO_1.SlaveStartFilterBank 	= 	0;						// Unimportant, SMT32F3 has only one CAN BUS
 
 	/*   Activate CAN filters   */
-	HAL_CAN_ConfigFilter(canbus->canHandle, &CAN_Filterconfig_FIFO_0);
-	HAL_CAN_ConfigFilter(canbus->canHandle, &CAN_Filterconfig_FIFO_1);
+	status += HAL_CAN_ConfigFilter(canbus->canHandle, &CAN_Filterconfig_FIFO_0);
+	status += HAL_CAN_ConfigFilter(canbus->canHandle, &CAN_Filterconfig_FIFO_1);
+
+	return status;
 
 }
 

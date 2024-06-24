@@ -24,12 +24,16 @@ void servoInit(SERVO_CONTROL *servo) {
 	servo->profile.followingThreshold 		= SERVO_FOLLOWING_THRESHOLD;
 
 	/*   Initialise hardware error status   */
-	servo->hardwareError.rangeVoltage		= 0;
-	servo->hardwareError.overTempMCU		= 0;
-	servo->hardwareError.overTempMotor		= 0;
-	servo->hardwareError.encoderMalfunc		= 0;
-	servo->hardwareError.overCurrent		= 0;
-	servo->hardwareError.errorSPI			= 0;
+	servo->hardwareError.rangeVoltage		= SERVO_OK;
+	servo->hardwareError.overTempMCU		= SERVO_OK;
+	servo->hardwareError.overTempMotor		= SERVO_OK;
+	servo->hardwareError.overCurrent		= SERVO_OK;
+
+	servo->hardwareError.errorInit			= SERVO_OK;
+	servo->hardwareError.errorEncoder		= SERVO_OK;
+	servo->hardwareError.errorPWM			= SERVO_OK;
+	servo->hardwareError.errorADC			= SERVO_OK;
+	servo->hardwareError.errorIMU			= SERVO_OK;
 
 	/*   Initialise  operating limits   */
 	servo->maxMotorTemp 					= SERVO_MAX_MOTOR_TEMP;
@@ -55,23 +59,62 @@ void servoInit(SERVO_CONTROL *servo) {
 	servo->profile.trajectoryGoalPosition 	= 0;
 	servo->profile.trajectoryVelocity 		= 0;
 
-	/*   Static friction compensation value   */
-	servo->friction 						= SERVO_STATIC_FRICTION;
 }
 
 /*   Encoder initialisation   */
 void encoderInit(SERVO_CONTROL *servo, SPI_HandleTypeDef *spiHandle, GPIO_TypeDef *csPort, uint16_t csPin) {
 
-	AS5048A_Init(&servo->encoder, spiHandle, csPort, csPin, servo->motionDirection);
-	//ERROR HANDELER SET FLAG
+	/*   Initialise status variable   */
+	uint8_t status = 0;
+
+	status += AS5048A_Init(&servo->encoder, spiHandle, csPort, csPin, servo->motionDirection);
+
+	/*   Check status   */
+	if ( status != 0 ) {
+
+		servo->hardwareError.errorInit			= SERVO_ERROR;
+		servo->hardwareError.errorEncoder		= SERVO_ERROR;
+		errorHandeler(servo);
+
+	}
 
 }
 
+/*   CAN-bus initialisation    */
+void canInit(SERVO_CONTROL *servo, CAN_HandleTypeDef *canHandle, uint8_t canDeviceID) {
+
+	/*   Initialise status variable   */
+	uint8_t status = 0;
+
+	status += CAN_Init(&servo->can, canHandle, canDeviceID);
+
+	/*   Check status   */
+	if ( status != 0 ) {
+
+			servo->hardwareError.errorInit			= SERVO_ERROR;
+			servo->hardwareError.errorCAN			= SERVO_ERROR;
+			errorHandeler(servo);
+
+		}
+
+}
 
 /*   Motor H-Bridge initialisation   */
 void motorInit(SERVO_CONTROL *servo, TIM_HandleTypeDef *timHandle, uint8_t timChannel, GPIO_TypeDef *hswAPort, uint16_t hswAPin, GPIO_TypeDef *hswBPort, uint16_t hswBPin) {
 
-	pwmInit(&servo->motor, timHandle, timChannel, hswAPort, hswAPin, hswBPort, hswBPin, servo->friction);
+	/*   Initialise status variable   */
+	uint8_t status = 0;
+
+	pwmInit(&servo->motor, timHandle, timChannel, hswAPort, hswAPin, hswBPort, hswBPin, SERVO_STATIC_FRICTION);
+
+	/*   Check status   */
+	if ( status != 0 ) {
+
+			servo->hardwareError.errorInit			= SERVO_ERROR;
+			servo->hardwareError.errorPWM			= SERVO_ERROR;
+			errorHandeler(servo);
+
+		}
 
 }
 
@@ -79,17 +122,30 @@ void motorInit(SERVO_CONTROL *servo, TIM_HandleTypeDef *timHandle, uint8_t timCh
 /*   ADC sensors initialisations   */
 void sensorsInit(SERVO_CONTROL *servo, ADC_HandleTypeDef *adcHandle0, ADC_HandleTypeDef *adcHandle1, ADC_HandleTypeDef *adcHandle2, ADC_HandleTypeDef *adcHandle3, OPAMP_HandleTypeDef *hopamp) {
 
+	/*   Initialise status variable   */
+	uint8_t status = 0;
+
 	/*   Initialise sensor ADCs   */
-	adcSensorInit(&servo->intTemp, 			rawToIntTemp, 	adcHandle0);
+	status += adcSensorInit(&servo->intTemp, 			rawToIntTemp, 	adcHandle0);
 
-	adcSensorInit(&servo->motorCurrent,	 	rawToCurrent, 	adcHandle1);
+	status += adcSensorInit(&servo->motorCurrent,	 	rawToCurrent, 	adcHandle1);
 
-	adcSensorInit(&servo->batteryVoltage, 	rawToVoltage, 	adcHandle2);
+	status += adcSensorInit(&servo->batteryVoltage, 	rawToVoltage, 	adcHandle2);
 
-	adcSensorInit(&servo->motorTemp, 		rawToMotorTemp, adcHandle3);
+	status += adcSensorInit(&servo->motorTemp, 		rawToMotorTemp, adcHandle3);
 
 	/*   Start current sensing opamp   */
-	HAL_OPAMP_Start(hopamp);
+	status += HAL_OPAMP_Start(hopamp);
+
+	/*   Check status   */
+	if ( status != 0 ) {
+
+			servo->hardwareError.errorInit			= SERVO_ERROR;
+			servo->hardwareError.errorPWM			= SERVO_ERROR;
+			errorHandeler(servo);
+
+		}
+
 }
 
 
@@ -109,13 +165,17 @@ void sensorsCheck(SERVO_CONTROL *servo) {
 	//status += adcSensorRangeCheck(&servo->motorCurrent, &servo->hardwareError.overTempMCU, SERVO_MAX_CURRENT, 0);
 
 	/*   If range error has occurred call error handler   */
-	if ( status != 0 ) errorHandeler(servo);
+	if ( status != 0 ) {
+
+		errorHandeler(servo);
+
+	}
 
 }
 
 
 /*   PID value initialisation   */
-void pidInit(SERVO_CONTROL *servo, float Kp, float Kd, float Ki, float lpfConstant) {
+void pidInit(SERVO_CONTROL *servo) {
 
 	/*   Initialise PID sample period value   */
 	servo->PID.samplePeriod   	= 	SERVO_PID_INTERVAL;
@@ -125,12 +185,12 @@ void pidInit(SERVO_CONTROL *servo, float Kp, float Kd, float Ki, float lpfConsta
 	servo->PID.outputMin      	=  	SERVO_PID_MIN;
 
 	/*   Initialise PID gains   */
-	servo->PID.Kp 			  	= 	Kp;
-	servo->PID.Kd 			  	= 	Kd;
-	servo->PID.Ki 			  	= 	Ki;
+	servo->PID.Kp 			  	= 	SERVO_PID_KP;
+	servo->PID.Kd 			  	= 	SERVO_PID_KD;
+	servo->PID.Ki 			  	= 	SERVO_PID_KI;
 
 	/*   Initialise low pass filter parameter   */
-	servo->PID.lpfConstant 	  	= 	lpfConstant;
+	servo->PID.lpfConstant 	  	= 	SERVO_PID_LPF;
 
 	/*   Initialise previous values    */
 	servo->PID.prevInput 	  	= 	0;
@@ -422,12 +482,24 @@ void motionPorfile(SERVO_CONTROL *servo) {
 /*   IMU initialisations   */
 void imuInit(SERVO_CONTROL *servo, SPI_HandleTypeDef *spiHandle, GPIO_TypeDef *csPort, uint16_t csPin) {
 
-	LSM6DSO_Init(&servo->imu, spiHandle, csPort , csPin, servo->PID.samplePeriod);
+	/*   Initialise status variable   */
+	uint8_t status = 0;
+
+	status += LSM6DSO_Init(&servo->imu, spiHandle, csPort, csPin, servo->PID.samplePeriod);
+
+	/*   Check status   */
+	if ( status != 0 ) {
+
+			servo->hardwareError.errorInit			= SERVO_ERROR;
+			servo->hardwareError.errorIMU			= SERVO_ERROR;
+			errorHandeler(servo);
+
+		}
 
 }
 
 
-
+/*   IMU update angle   */
 void imuUpdateAngle(SERVO_CONTROL *servo) {
 
 	/*   Read and update sensor data   */
@@ -456,8 +528,12 @@ void torqueEnable(SERVO_CONTROL *servo) {
 }
 
 
+/*   General error handler   */
+void errorHandeler(SERVO_CONTROL *servo) {
 
+//STUFF GOES HERE
 
+}
 
 
 

@@ -27,7 +27,7 @@ typedef struct {
 } ADC;
 
 /*   Sensor Initialisation   */
-void adcSensorInit(ADC *sensor, ADC_Conversion_Func conversionFunction, ADC_HandleTypeDef *adcHandle);
+uint8_t adcSensorInit(ADC *sensor, ADC_Conversion_Func conversionFunction, ADC_HandleTypeDef *adcHandle);
 
 /*   Sensor ADC polling update   */
 void adcSensorUpdate(ADC *sensor);

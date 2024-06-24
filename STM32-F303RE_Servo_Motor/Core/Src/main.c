@@ -149,7 +149,7 @@ int main(void)
   encoderInit	(&servo, &hspi1, SPI1_CS_GPIO_Port, SPI1_CS_Pin);
   motorInit		(&servo, &htim2, TIM_CHANNEL_1, hswA_GPIO_Port, hswA_Pin, hswB_GPIO_Port, hswB_Pin);
   sensorsInit	(&servo, &hadc1, &hadc2, &hadc3, &hadc4, &hopamp2);
-  pidInit		(&servo, 3000, 3000, 250, 100);
+  pidInit		(&servo);
   imuInit		(&servo, &hspi2, SPI2_CS_GPIO_Port, SPI2_CS_Pin);
 
   /*TEMP!!!!!!!!!!!*/
@@ -551,11 +551,10 @@ static void MX_OPAMP2_Init(void)
 
   /* USER CODE END OPAMP2_Init 1 */
   hopamp2.Instance = OPAMP2;
-  hopamp2.Init.Mode = OPAMP_PGA_MODE;
+  hopamp2.Init.Mode = OPAMP_STANDALONE_MODE;
   hopamp2.Init.NonInvertingInput = OPAMP_NONINVERTINGINPUT_IO2;
+  hopamp2.Init.InvertingInput = OPAMP_INVERTINGINPUT_IO0;
   hopamp2.Init.TimerControlledMuxmode = OPAMP_TIMERCONTROLLEDMUXMODE_DISABLE;
-  hopamp2.Init.PgaConnect = OPAMP_PGA_CONNECT_INVERTINGINPUT_NO;
-  hopamp2.Init.PgaGain = OPAMP_PGA_GAIN_2;
   hopamp2.Init.UserTrimming = OPAMP_TRIMMING_FACTORY;
   if (HAL_OPAMP_Init(&hopamp2) != HAL_OK)
   {

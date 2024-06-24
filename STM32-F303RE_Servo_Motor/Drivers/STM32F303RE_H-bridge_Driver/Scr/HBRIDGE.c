@@ -4,7 +4,7 @@
 #include <stdio.h>
 
 /*   Motor initialisation   */
-void pwmInit(MOTOR *motor, TIM_HandleTypeDef *timHandle, uint8_t timChannel, GPIO_TypeDef *hswAPort, uint16_t hswAPin, GPIO_TypeDef *hswBPort, uint16_t hswBPin, uint8_t frictionCompensation){
+uint8_t pwmInit(MOTOR *motor, TIM_HandleTypeDef *timHandle, uint8_t timChannel, GPIO_TypeDef *hswAPort, uint16_t hswAPin, GPIO_TypeDef *hswBPort, uint16_t hswBPin, uint8_t frictionCompensation){
 
 	/*   Timer handle   */
 	motor->timHandle 		= timHandle;
@@ -26,7 +26,7 @@ void pwmInit(MOTOR *motor, TIM_HandleTypeDef *timHandle, uint8_t timChannel, GPI
 
 
 	/*   Start PWM timer count   */
-	HAL_TIM_PWM_Start(motor->timHandle, motor->timChannel);
+	return HAL_TIM_PWM_Start(motor->timHandle, motor->timChannel);
 
 }
 

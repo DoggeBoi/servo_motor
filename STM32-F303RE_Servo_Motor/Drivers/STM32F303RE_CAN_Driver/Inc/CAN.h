@@ -26,11 +26,11 @@ typedef struct {
 
 
 /*   Initialisation   */
-void CAN_Init(CANBUS *canbus, CAN_HandleTypeDef *canHandle, uint8_t canDeviceID);
+uint8_t CAN_Init(CANBUS *canbus, CAN_HandleTypeDef *canHandle, uint8_t canDeviceID);
 
 
 /*   Sets filter parameters   */
-void CAN_SetFilter(CANBUS *canbus);
+uint8_t CAN_SetFilter(CANBUS *canbus);
 
 
 /*   Add data frame to Tx Mailbox   */

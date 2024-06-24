@@ -52,11 +52,22 @@
 /*   Profile following threshold deviation   */
 #define SERVO_FOLLOWING_THRESHOLD	300
 
-/*   PID loop sample interval   */
+/*   Base PID loop sample interval and filter constant  */
 #define SERVO_PID_INTERVAL			4						// 4 ms
+#define SERVO_PID_LPF				100						// 0.1
+
+/*   Base PID GAINS   */
+#define SERVO_PID_KP				3000					// 3.0
+#define SERVO_PID_KD				3000					// 0.03
+#define SERVO_PID_KI				250						// 0.25
 
 /*   Static friction compensation value   */
 #define SERVO_STATIC_FRICTION		55
+
+/*   Error value   */
+#define SERVO_ERROR 1
+#define SERVO_OK	0
+
 
 /*   Hardware error status   */
 typedef struct {
@@ -64,10 +75,14 @@ typedef struct {
 	uint8_t 	rangeVoltage;						// Voltage not within range of maxVoltage and minVoltage
 	uint8_t 	overTempMCU;						// Internal MCU temperature exceeding maxTempInt
 	uint8_t 	overTempMotor;						// Motor temperature exceeding maxTempMotor
-	uint8_t 	encoderMalfunc;						// No or incorrect data from encoder
 	uint8_t 	overCurrent;						// Current exceeding maxCurrent
-	uint8_t 	errorSPI;							// SPI bus error
-	uint8_t 	errorADC1;							// ADC data error
+
+	uint8_t 	errorInit;							// Failure of one of init functions
+	uint8_t 	errorEncoder;						// Error with encoder communication
+	uint8_t 	errorPWM;							// Error with motor drive
+	uint8_t 	errorADC;							// Error with ADC calibration
+	uint8_t 	errorIMU;							// Error with IMU communication
+	uint8_t 	errorCAN;							// Error with CAN bus communication
 
 } HW_ERR;
 
@@ -208,9 +223,6 @@ typedef struct {
 	uint8_t  	inMotion;									// Currently moving
 	uint16_t 	motionThreshold;							// Threshold velocity to be considered moving
 
-	/*   Static friction compensation value   */
-	uint8_t 	friction;
-
 } SERVO_CONTROL;
 
 
@@ -219,7 +231,7 @@ void servoInit(SERVO_CONTROL *servo);
 
 
 /*   PID value initialisation   */
-void pidInit(SERVO_CONTROL *servo, float Kp, float Kd, float Ki, float lpfConstant);
+void pidInit(SERVO_CONTROL *servo);
 
 
 /*   PID calculate and update   */
