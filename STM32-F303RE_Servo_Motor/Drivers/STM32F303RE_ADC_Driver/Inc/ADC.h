@@ -7,6 +7,9 @@
 /*	Maximum ADC polling conversion timeout   */
 #define ADC_MAX_DELAY 1							// ms
 
+/*   Base parameters   */
+#define ADC_IIRFILTER_COEFFICIENT 	251
+
 /*   Sensor specific conversion function   */
 typedef int16_t (*ADC_Conversion_Func)(uint16_t);
 
@@ -23,6 +26,9 @@ typedef struct {
 
 	/*   Sensor specific conversion function   */
 	ADC_Conversion_Func conversionFunction;
+
+	/*   IIR low pass filter parameters   */
+	uint8_t				extIIRFilterCoefficient;	// 0 - 255, 0 - 1
 
 } ADC;
 

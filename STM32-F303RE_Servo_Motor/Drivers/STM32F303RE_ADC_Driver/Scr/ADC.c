@@ -14,19 +14,25 @@ uint8_t adcSensorInit(ADC *sensor, ADC_Conversion_Func conversionFunction, ADC_H
 	/*   Connect sensor specific conversion function   */
 	sensor->conversionFunction = conversionFunction;
 
+	/*   Initialise base ADC low pass filter coefficient   */
+	sensor->extIIRFilterCoefficient = ADC_IIRFILTER_COEFFICIENT;
+
 	/*	Calibrate ADC   */
 	status += HAL_ADCEx_Calibration_Start(adcHandle, ADC_SINGLE_ENDED);
 
 	/*   Calibration completion time   */
 	HAL_Delay(10);
 
-	/*   Retrun status variable   */
+	/*   Return status variable   */
 	return status;
 
 }
 
 /*   Sensor ADC polling update   */
 void adcSensorUpdate(ADC *sensor) {
+
+	/*   Calculate internal filter value from external    */
+	float alpha				= sensor->extIIRFilterCoefficient / 255.0f;					// Convert Filter-coefficient to alpha
 
 	/*   Start ADC   */
 	HAL_ADC_Start(sensor->adcHandle);
@@ -41,7 +47,7 @@ void adcSensorUpdate(ADC *sensor) {
 	HAL_ADC_Stop(sensor->adcHandle);
 
 	/*   Convert and store data   */
-	sensor->converData = sensor->conversionFunction(sensor->rawData);
+	sensor->converData = ( int16_t ) ( ( 1.0f - alpha ) * sensor->conversionFunction(sensor->rawData) + alpha * sensor->converData ) ;
 
 }
 
