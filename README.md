@@ -9,7 +9,7 @@ This repository contains a proof-of-concept project demonstrating the control of
   - Internal temperature monitoring via the STM32F303 microcontroller's internal temperature sensor
   - Input voltage and current measurement
 - **Position Sensing:** Utilizes the AS5048 absolute magnetic encoder for position feedback via SPI.
-- **Communication:** Communication via CAN 2.0A using the MCP2551 transceiver for data exchange.
+- **Communication:** Communication via CAN 2.0B using the MCP2551 transceiver for data exchange.
 - **Motor Control:** Motor control through the TB6612FNG H-Bridge driver for actuation.
 
 # To-be-added
@@ -17,7 +17,7 @@ This repository contains a proof-of-concept project demonstrating the control of
 - Automatic shutdown in case of detected failure.
 - ~~LSM6SDO 3-axis angle sensing using 6-axis IMU and a complementary filter~~ 23/06/24.
 - ~~Current sensing using internal opamp~~ 24/06/24.
-- Complete CAN driver with exact memory mapping.
+- ~~Complete CAN driver with exact memory mapping.~~ 24/07/02.
 
 # Testing setup as of 19/06/24
 ![IMG_20240619_185021659](https://github.com/DoggeBoi/servo_motor/assets/59169880/0492c42f-4054-40ac-a414-125c2da43139)
