@@ -12,7 +12,7 @@
 /*   Default values   */
 
 /*   Device information   */
-#define ID							1						// 5 bit Device ID
+#define ID							1						// 8 bit Device ID
 #define FIRMWARE_VERSION			1
 
 /*   Motion direction   */
@@ -38,7 +38,6 @@
 #define SERVO_MAX_MOTOR_TEMP		8000					// 80 °C
 #define SERVO_MAX_INTERNAL_TEMP		8000					// 80 °C
 #define SERVO_MAX_CURRENT			3000					// 3 A
-#define SERVO_MAX_TORQUE			1400					// 1.4 Nm
 #define SERVO_PID_MAX				1023
 #define SERVO_PID_MIN		   	   -1023
 #define SERVO_MAX_ACCELERATION  	10000
@@ -68,6 +67,8 @@
 #define SERVO_ERROR 1
 #define SERVO_OK	0
 
+/*   Operation function pointer   */
+typedef void (*OperationFucntionPointer)(CANBUS*, uint8_t*, void**, uint8_t*, uint8_t*, uint8_t, uint8_t);
 
 /*   Hardware error status   */
 typedef struct {
@@ -98,6 +99,11 @@ typedef struct {
 	float 		integrator;
 	float 		differentaitor;
 	float 		proportinal;
+
+	/*   PID values external   */
+	int16_t		extIntegrator;
+	int16_t		extDifferentaitor;
+	int16_t		extProprotinal;
 
 	/*   PID  state   */
 	uint16_t 	setPoint;
@@ -213,7 +219,7 @@ typedef struct {
 	CANBUS 		can;
 
 	/*   Inertial measurement unit   */
-	LSM6DSO imu;
+	LSM6DSO 	imu;
 
 	/*   Motion status  */
 //	int16_t 	load;										// Switches signs in CW vs CCW
@@ -222,6 +228,14 @@ typedef struct {
 	int16_t   	acceleration;
 	uint8_t  	inMotion;									// Currently moving
 	uint16_t 	motionThreshold;							// Threshold velocity to be considered moving
+
+	/*   Operation function array   */
+	OperationFucntionPointer OperationFunctions[32];
+
+	/*   Variable addressable list   */
+	void*		variables			[47];
+	uint8_t 	readWritePrivlages	[47];							// 0 is read only
+	uint8_t 	variablesSize		[47];							// 0 8 bit, 1 is 16 bit
 
 } SERVO_CONTROL;
 
@@ -285,9 +299,16 @@ void errorHandeler(SERVO_CONTROL *servo);
 /*   Motor power control functions   */
 void torqueDisable(SERVO_CONTROL *servo);
 
-
 void torqueEnable(SERVO_CONTROL *servo);
 
 
+/*   Higher level CAN-bus functions   */
+void processCanMessages(SERVO_CONTROL *servo, uint32_t RxFifo);
+
+
+/*   Operation functions   */
+void writeSingle(CANBUS *canbus, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority);
+
+void readSingle(CANBUS *canbus, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority);
 
 #endif /* STM32F303RE_SERVO_DRIVER_INC_MOTOR_H */

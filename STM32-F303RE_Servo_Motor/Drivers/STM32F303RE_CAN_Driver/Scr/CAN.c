@@ -17,32 +17,42 @@ uint8_t CAN_Init(CANBUS *canbus, CAN_HandleTypeDef *canHandle, uint8_t canDevice
 	/*   Initialise CAN   */
 	status += HAL_CAN_Start(canbus->canHandle);
 
-	/*   Activate callback functions   */
-	status += HAL_CAN_ActivateNotification(canbus->canHandle, CAN_IT_RX_FIFO0_MSG_PENDING);
-	status += HAL_CAN_ActivateNotification(canbus->canHandle, CAN_IT_RX_FIFO1_MSG_PENDING);
-
 	return status;
 
 }
 
+/*   Activate CAN callbacks   */
+void CAN_ActivateCallback(CANBUS *canbus) {
+
+	/*   Activate callback functions   */
+	HAL_CAN_ActivateNotification(canbus->canHandle, CAN_IT_RX_FIFO0_MSG_PENDING);
+	HAL_CAN_ActivateNotification(canbus->canHandle, CAN_IT_RX_FIFO1_MSG_PENDING);
+
+}
+
+
 uint8_t CAN_SetFilter(CANBUS *canbus) {
 
 	/*   Initialise status variable   */
-	uint8_t status = 0;
+	uint8_t status 			= 0;
 
 	/*   Initialise and calculate CAN id parameters   */
-	uint16_t FIFO0_ID = ( canbus->canDeviceID << 4 ) | (0 << 10);						// Set can ID bits, MSB 0 for high priority messages
-    uint16_t FIFO1_ID =	( canbus->canDeviceID << 4 ) | (1 << 10);						// Set can ID bits, MSB 1 for low priority messages
+	uint16_t FIFO0_ID_HIGH 	= ( canbus->canDeviceID >> 5 )  | (0 << 14);		// Set can ID bits, MSB 0 for high priority messages
+	uint16_t FIFO0_ID_LOW	= ( canbus->canDeviceID << 11 ) | (1 << 2);			// IDE bit must be 1
+
+
+    uint16_t FIFO1_ID_HIGH 	= ( canbus->canDeviceID << 5 )  | (1 << 14);		// Set can ID bits, MSB 1 for low priority messages
+    uint16_t FIFO1_ID_LOW	= ( canbus->canDeviceID << 11 ) | (1 << 2);			// IDE bit must be 1
 
 	/*	CAN FIFO Filter configuration declaration	*/
 	CAN_FilterTypeDef CAN_Filterconfig_FIFO_0;									// Critical to high priority mailbox
 	CAN_FilterTypeDef CAN_Filterconfig_FIFO_1;									// Moderate to low priority mailbox
 
-	/*	CAN FIFO_0 filter specific configuration   */							// Shift 5 since identifier 11 bits, high register 16 bits
-	CAN_Filterconfig_FIFO_0.FilterIdHigh 			= 	FIFO0_ID << 5;			// Bit 0 must be 0 (High priority), bit 1 don't care (Both high priority),bit 2-6 must be 00001 (Device id 1), bit 7-10 don't care (Operation)
-	CAN_Filterconfig_FIFO_0.FilterIdLow 			= 	0x0000;					// Not used with 11-bit identifier
-	CAN_Filterconfig_FIFO_0.FilterMaskIdHigh 		= 	0x05F0 << 5;			// Masked to only check, MSB priority bit and 5 bit identifier
-	CAN_Filterconfig_FIFO_0.FilterMaskIdLow			= 	0x0000;					// Not used with 11-bit identifier
+	/*	CAN FIFO_0 filter specific configuration   */
+	CAN_Filterconfig_FIFO_0.FilterIdHigh 			= 	FIFO0_ID_HIGH;			// Bit 0 must be 0 (High priority), bit 1 don't care (Both high priority), bit 2-9 don't care (sender id), bit 10-17 must be id, bit 18-29 don't care ( misc )
+	CAN_Filterconfig_FIFO_0.FilterIdLow 			= 	FIFO0_ID_LOW;
+	CAN_Filterconfig_FIFO_0.FilterMaskIdHigh 		= 	0b0100000000000111;
+	CAN_Filterconfig_FIFO_0.FilterMaskIdLow			= 	0b1111100000000100;		// IDE bit must be correct
 
 	/*	CAN FIFO_0 filter standard configuration   */
 	CAN_Filterconfig_FIFO_0.FilterFIFOAssignment 	=	CAN_FILTER_FIFO0;
@@ -53,10 +63,10 @@ uint8_t CAN_SetFilter(CANBUS *canbus) {
 	CAN_Filterconfig_FIFO_0.SlaveStartFilterBank 	= 	0;						// Unimportant, SMT32F3 has only one CAN BUS
 
 	/*	CAN FIFO_1 filter specific configuration   */
-	CAN_Filterconfig_FIFO_1.FilterIdHigh 			= 	FIFO1_ID << 5;			// Bit 0 must be 1 (High priority), bit 1 don't care (Both high priority), bit 2-6 must be 00001 (Device id 1), bit 7-10 don't care (Operation)
-	CAN_Filterconfig_FIFO_1.FilterIdLow 			= 	0x0000;					// Not used with 11-bit identifier
-	CAN_Filterconfig_FIFO_1.FilterMaskIdHigh 		= 	0x05F0 << 5;			// Masked to only check, MSB priority bit and 5 bit identifier
-	CAN_Filterconfig_FIFO_1.FilterMaskIdLow 		= 	0x0000;					// Not used with 11-bit identifier
+	CAN_Filterconfig_FIFO_1.FilterIdHigh 			= 	FIFO1_ID_HIGH;			// Bit 0 must be 1 (Low priority), bit 1 don't care (Both high priority), bit 2-9 don't care (sender id), bit 10-17 must be id, bit 18-29 don't care ( misc )
+	CAN_Filterconfig_FIFO_1.FilterIdLow 			= 	FIFO1_ID_LOW;
+	CAN_Filterconfig_FIFO_1.FilterMaskIdHigh 		= 	0b0100000000000111;
+	CAN_Filterconfig_FIFO_1.FilterMaskIdLow 		= 	0b1111100000000100;		// IDE bit must be correct
 
 	/*	CAN FIFO_1 filter standard configuration   */
 	CAN_Filterconfig_FIFO_1.FilterFIFOAssignment 	= 	CAN_FILTER_FIFO1;
@@ -75,56 +85,47 @@ uint8_t CAN_SetFilter(CANBUS *canbus) {
 }
 
 /*   Add data frame to Tx Mailbox   */
-void CAN_SendDataFrame(CANBUS *canbus, uint8_t *TxData, uint8_t dataLenght, uint8_t priority, uint8_t operation) {
+void CAN_SendDataFrame(CANBUS *canbus, uint8_t *TxData, uint8_t dataLenght, uint8_t priority, uint8_t operationId) {
 
 
 	/*   Initialise header struct   */
 	CAN_TxHeaderTypeDef TxHeader;
 
 	/*   Standard settings   */
-	TxHeader.ExtId 					= 	0;					// Set extended id, not used, 0
-	TxHeader.IDE 					= 	CAN_ID_STD;			// Use 11/29-bit identifier
-	TxHeader.RTR 					= 	CAN_RTR_DATA;		// Send/request data
-	TxHeader.TransmitGlobalTime 	=	DISABLE;			// Time-stamp disable.
+	TxHeader.IDE 					= 	CAN_ID_EXT;					// Use 29-bit identifier
+	TxHeader.RTR 					= 	CAN_RTR_DATA;				// Send/request data
+	TxHeader.TransmitGlobalTime 	=	DISABLE;					// Time-stamp disable.
 
 	/*   Specific setting   */
-	TxHeader.DLC 					= dataLenght;						// Set data-lenght bit
+	TxHeader.DLC 					= 	dataLenght;					// Set data-lenght bit
 
-	/*   Set CAN transmission header   */
-	TxHeader.StdId 				    = ( priority << 9 );     			// Set priority bits
-	TxHeader.StdId 				   |= ( canbus->canMasterID << 4 );     // Set recipient id bits
-	TxHeader.StdId 				   |= ( operation );     				// Set operation id bits
+	/*   Set CAN id header   */
+	TxHeader.StdId 				    = priority << 8 ;     			// Set priority bits
+	TxHeader.StdId 				   |= canbus->canDeviceID;     		// Set sender id bits
+
+	TxHeader.ExtId 					= canbus->canMasterID << 8;
+	TxHeader.ExtId 				   |= operationId;
 
 	/*   Add can frame to transmission mailbox   */
 	HAL_CAN_AddTxMessage(canbus->canHandle, &TxHeader, TxData, &canbus->canTxMailbox);
 
 }
 
-void CAN_GetFrame(CANBUS *canbus, uint8_t RxMailbox, CAN_RxHeaderTypeDef *RxHeader, uint8_t *RxBuf) {
+/*   Unpack frame from Rx mailbox*/
+void CAN_GetFrame(CANBUS *canbus, uint32_t RxFifo, uint8_t *RxData, uint8_t *senderId, uint8_t *operationId, uint8_t *priority) {
 
-	HAL_CAN_GetRxMessage(canbus->canHandle, RxMailbox, RxHeader, RxBuf);
-	//Motor_do_thing
-	//Check fifo fill level, if 0 reacitvate notification and lower flag
+	/*   Initialise header struct and data buffer   */
+	CAN_RxHeaderTypeDef 	RxHeader;
 
-}
+	/*   Get frame*/
+	HAL_CAN_GetRxMessage(canbus->canHandle, RxFifo, &RxHeader, RxData);
 
-void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan) {
+	/*   Extract specific data from extended identifier   */
+	*senderId 		= RxHeader.StdId & 0xFF;
 
-	HAL_CAN_DeactivateNotification(hcan, CAN_IT_RX_FIFO0_MSG_PENDING);
-	//RTOS fifo task unsuspend
+	*operationId	= RxHeader.ExtId & 0xFF;
 
-}
-
-void HAL_CAN_RxFifo1MsgPendingCallback(CAN_HandleTypeDef *hcan) {
-
-	HAL_CAN_DeactivateNotification(hcan, CAN_IT_RX_FIFO1_MSG_PENDING);
-	//RTOS fifo task unsuspend
+	*priority		= RxHeader.ExtId >> 8;
 
 }
 
-
-/*   Send startup confirmation to master device   */
-void CAN_SendStartUpFrame(CANBUS *canbus) {
-// send remote frame requseting statrup data parameters!!!
-
-}

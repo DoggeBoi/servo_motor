@@ -40,8 +40,7 @@ void servoInit(SERVO_CONTROL *servo) {
 	servo->maxIntTemp 						= SERVO_MAX_INTERNAL_TEMP;
 	servo->maxVoltage 						= SERVO_MAX_VOLTAGE;
 	servo->minVoltage 						= SERVO_MIN_VOLTAGE;
-//	servo->maxCurrent 						= SERVO_MAX_CURRENT;
-//	servo->maxTorque 						= SERVO_MAX_TORQUE;
+	servo->maxCurrent 						= SERVO_MAX_CURRENT;
 
 	/*   Initialise motion profile limits   */
 	servo->maxPosition 						= SERVO_MAX_POSITION;
@@ -58,6 +57,206 @@ void servoInit(SERVO_CONTROL *servo) {
 	servo->profile.trajectoryStatus 		= SERVO_PROFILE_COMPLETE;
 	servo->profile.trajectoryGoalPosition 	= 0;
 	servo->profile.trajectoryVelocity 		= 0;
+
+	/*   Operation function array   */
+	servo->OperationFunctions[0] = writeSingle;
+	servo->OperationFunctions[1] = readSingle;
+
+
+
+	/*   Variable addressable list   */
+	void *variablesCopyFrom[47] = {
+			&servo->PID.Kp,
+			&servo->PID.Ki,
+			&servo->PID.Kd,
+			&servo->PID.setPoint,
+			&servo->PID.Error,
+			&servo->PID.lpfConstant,
+			&servo->PID.extIntegrator,
+			&servo->PID.extDifferentaitor,
+			&servo->PID.extProprotinal,
+			&servo->PID.outputLimited,
+
+			&servo->profile.maxAcceleration,
+			&servo->profile.maxVelocity,
+			&servo->profile.trajectoryStatus,
+			&servo->profile.trajectoryFollowing,
+			&servo->profile.followingThreshold,
+
+			&servo->id,
+			&servo->firmwareVer,
+			&servo->goalPosition,
+			&servo->torqueEnable,
+			&servo->motionDirection,
+			&servo->maxMotorTemp,
+			&servo->maxIntTemp,
+			&servo->maxVoltage,
+			&servo->minVoltage,
+			&servo->maxCurrent,
+			&servo->maxPosition,
+			&servo->minPosition,
+			&servo->velocity,
+			&servo->acceleration,
+			&servo->inMotion,
+			&servo->motionThreshold,
+
+			&servo->encoder.angle,
+
+			&servo->intTemp.converData,
+			&servo->intTemp.extIIRFilterCoefficient,
+
+			&servo->motorTemp.converData,
+			&servo->motorTemp.extIIRFilterCoefficient,
+
+			&servo->batteryVoltage.converData,
+			&servo->batteryVoltage.extIIRFilterCoefficient,
+
+			&servo->motorCurrent.converData,
+			&servo->motorCurrent.extIIRFilterCoefficient,
+
+			&servo->motor.dutyCycle,
+			&servo->motor.direction,
+			&servo->motor.frictionCompensation,
+
+			&servo->imu.extIIRFilterCoefficient,
+			&servo->imu.extCFilterCoefficient,
+			&servo->imu.extAngleX,
+			&servo->imu.extAngleY
+
+	};
+
+	uint8_t readWritePrivlagesCopyFrom[47] = {
+
+			1, // Kp
+			1, // Ki
+			1, // Kd
+			0, // setPoint
+			0, // Error
+			1, // lpfConstant
+			0, // extIntegrator
+			0, // extDifferentaitor
+			0, // extProprotinal
+			0, // outputLimited
+
+			1, // maxAcceleration
+			1, // maxVelocity
+			0, // trajectoryStatus
+			0, // trajectoryFollowing
+			1, // followingThreshold
+
+			0, // id
+			0, // firmwareVer
+			1, // goalPosition
+			0, // torqueEnable, Changed via torque on command
+			0, // motionDirection, Changed via torque on command
+			1, // maxMotorTemp
+			1, // maxIntTemp
+			1, // maxVoltage
+			1, // minVoltage
+			1, // maxCurrent
+			1, // maxPosition
+			1, // minPosition
+			0, // velocity
+			0, // acceleration
+			0, // inMotion
+			1, // motionThreshold
+
+			0, // angle
+
+			0, // converData
+			1, // extIIRFilterCoefficient
+
+			0, // converData
+			1, // extIIRFilterCoefficient
+
+			0, // converData
+			1, // extIIRFilterCoefficient
+
+			0, // converData
+			1, // extIIRFilterCoefficient
+
+			0, // dutyCycle
+			0, // direction
+			1, // frictionCompensation
+
+			1, // extIIRFilterCoefficient
+			1, // extCFilterCoefficient
+			0, // extAngleX
+			0, // extAngleY
+
+	};
+
+	uint8_t variablesSizeCopyFrom[47] = {
+
+			1, // Kp
+			1, // Ki
+			1, // Kd
+			1, // setPoint
+			1, // Error
+			1, // lpfConstant
+			1, // extIntegrator
+			1, // extDifferentaitor
+			1, // extProprotinal
+			1, // outputLimited
+
+			1, // maxAcceleration
+			1, // maxVelocity
+			0, // trajectoryStatus
+			0, // trajectoryFollowing
+			1, // followingThreshold
+
+			0, // id
+			0, // firmwareVer
+			1, // goalPosition
+			0, // torqueEnable, Changed via torque on command
+			0, // motionDirection, Changed via torque on command
+			1, // maxMotorTemp
+			1, // maxIntTemp
+			1, // maxVoltage
+			1, // minVoltage
+			1, // maxCurrent
+			1, // maxPosition
+			1, // minPosition
+			1, // velocity
+			1, // acceleration
+			0, // inMotion
+			1, // motionThreshold
+
+			1, // angle
+
+			1, // converData
+			0, // extIIRFilterCoefficient
+
+			1, // converData
+			0, // extIIRFilterCoefficient
+
+			1, // converData
+			0, // extIIRFilterCoefficient
+
+			1, // converData
+			0, // extIIRFilterCoefficient
+
+			1, // dutyCycle
+			0, // direction
+			0, // frictionCompensation
+
+			0, // extIIRFilterCoefficient
+			0, // extCFilterCoefficient
+			1, // extAngleX
+			1, // extAngleY
+
+	};
+
+	/*   Copy data into struct   */
+	for (int i = 0; i < 47; ++i ) {
+
+			servo->variables[i] 			= variablesCopyFrom[i];
+
+			servo->readWritePrivlages[i]	= readWritePrivlagesCopyFrom[i];
+
+			servo->variablesSize[i] 		= variablesSizeCopyFrom[i];
+
+		}
 
 }
 
@@ -156,13 +355,13 @@ void sensorsCheck(SERVO_CONTROL *servo) {
 	uint8_t status = 0;
 
 	/*   Check each sensor value   */
-	status += adcSensorRangeCheck(&servo->intTemp, &servo->hardwareError.overTempMCU, SERVO_MAX_INTERNAL_TEMP, 0);
+	status += adcSensorRangeCheck(&servo->intTemp, 			&servo->hardwareError.overTempMCU, SERVO_MAX_INTERNAL_TEMP, 0);
 
-	status += adcSensorRangeCheck(&servo->motorTemp, &servo->hardwareError.overTempMCU, SERVO_MAX_MOTOR_TEMP, 0);
+	status += adcSensorRangeCheck(&servo->motorTemp, 		&servo->hardwareError.overTempMCU, SERVO_MAX_MOTOR_TEMP, 0);
 
-	status += adcSensorRangeCheck(&servo->batteryVoltage, &servo->hardwareError.overTempMCU, SERVO_MAX_VOLTAGE, SERVO_MIN_VOLTAGE);
+	status += adcSensorRangeCheck(&servo->batteryVoltage, 	&servo->hardwareError.overTempMCU, SERVO_MAX_VOLTAGE, SERVO_MIN_VOLTAGE);
 
-	//status += adcSensorRangeCheck(&servo->motorCurrent, &servo->hardwareError.overTempMCU, SERVO_MAX_CURRENT, 0);
+	status += adcSensorRangeCheck(&servo->motorCurrent, 	&servo->hardwareError.overTempMCU, SERVO_MAX_CURRENT, 0);
 
 	/*   If range error has occurred call error handler   */
 	if ( status != 0 ) {
@@ -265,6 +464,11 @@ void pidUpdate(SERVO_CONTROL *servo) {
     servo->PID.prevInput 				= servo->PID.Input;
     servo->prevVelocity					= servo->velocity;
     servo->PID.prevError				= servo->PID.Error;
+
+    /*   Update external PID values   */
+    servo->PID.extProprotinal			= servo->PID.proportinal;
+	servo->PID.extDifferentaitor		= servo->PID.differentaitor;
+	servo->PID.extIntegrator			= servo->PID.integrator;
 
     /*   Update inMotion variable   */
     servo->inMotion = ( abs( servo->velocity ) >= servo->motionThreshold );			// 1 if motion is above threshold
@@ -510,7 +714,6 @@ void imuUpdateAngle(SERVO_CONTROL *servo) {
 
 }
 
-
 /*   Motor power control functions   */
 void torqueDisable(SERVO_CONTROL *servo) {
 
@@ -534,6 +737,132 @@ void errorHandeler(SERVO_CONTROL *servo) {
 //STUFF GOES HERE
 
 }
+
+
+/*   Operation functions   */
+void writeSingle(CANBUS *canbus, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority) {
+
+	/*   Initialise address variable   */
+	uint8_t adress = RxBuf[0];
+
+	/*   If address is inside range and has write privilege   */
+	if ( ( adress <= 46 )  && ( readWritePrivlages[adress] == 1 ) ) {
+
+			/*   If variable is 16-bit number   */
+			if ( variablesSize[adress] == 1 ) {
+
+				*(uint16_t*)variables[adress] = ( ( RxBuf[1] << 8 ) | RxBuf[2] );
+
+			}
+
+			/*   If variable is 8-bit number   */
+			else {
+
+				*(uint8_t*)variables[adress] = RxBuf[2];
+
+			}
+
+	}
+
+	/*   Send back read message   */
+	readSingle(canbus, RxBuf, variables, readWritePrivlages, variablesSize, operationId, priority);		// Value wont have changed if above if statement  in false;
+
+}
+
+
+void readSingle(CANBUS *canbus, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority) {
+
+	/*   Initialise address variable   */
+	uint8_t adress = RxBuf[0];
+
+
+	/*   If address is inside range   */
+	if ( adress <= 46 ) {
+
+		/*   If variable is 16-bit number   */
+		if ( variablesSize[adress] == 1 ) {
+
+			/*   Initialise transmission buffer   */
+			uint8_t TxBuf[3];
+
+			/*   Set read address byte   */
+			TxBuf[0] = adress;
+
+			uint16_t readData =  *(uint16_t*)variables[adress];
+
+			/*   Set data bytes in array   */
+			TxBuf[1] = ( readData >> 8 ) & 0xFF;
+			TxBuf[2] =   readData        & 0xFF;
+
+			CAN_SendDataFrame(canbus, TxBuf, 3, priority, operationId);
+
+		}
+
+		/*   If variable is 8-bit number   */
+		else {
+
+			/*   Initialise transmission buffer   */
+			uint8_t TxBuf[2];
+
+			/*   Set read address byte   */
+			TxBuf[0] = adress;
+
+			uint8_t readData =  *(uint8_t*)variables[adress];
+
+			/*   Set data bytes in array   */
+			TxBuf[1] = readData;
+
+			CAN_SendDataFrame(canbus, TxBuf, 2, priority, operationId);
+
+		}
+
+	}
+
+	/*   If address is outside range   */
+	else {
+
+
+
+	}
+
+
+}
+
+
+/*   Higher level CAN-bus functions   */
+void processCanMessages(SERVO_CONTROL *servo, uint32_t RxFifo) {
+
+	/*   Initialise message data variables   */
+	uint8_t 			RxBuf[8];
+	uint8_t 			operationId;
+	uint8_t				senderId;
+	uint8_t				priority;
+
+	/*   While new messages are available   */
+	while (  HAL_CAN_GetRxFifoFillLevel(servo->can.canHandle, RxFifo) > 0 ) {
+
+		/*   Get message   */
+		CAN_GetFrame(&servo->can, RxFifo, RxBuf, &senderId, &operationId, &priority);
+
+		/*   Check if operation id is within range and operation is defined    */
+		if ( ( operationId < 255 ) && ( servo->OperationFunctions[operationId] != NULL ) ) {
+
+			/*   Call operation function   */
+			servo->OperationFunctions[operationId](&servo->can, RxBuf, servo->variables, servo->readWritePrivlages, servo->variablesSize, operationId, priority);
+
+		}
+
+		/*   Operation ID not defined or outside range   */
+		else {
+
+			// No operation
+
+		}
+
+	}
+
+}
+
 
 
 

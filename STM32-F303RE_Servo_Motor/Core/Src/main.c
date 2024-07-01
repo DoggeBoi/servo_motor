@@ -67,6 +67,8 @@ TIM_HandleTypeDef htim2;
 UART_HandleTypeDef huart2;
 
 osThreadId servoUpdateHandle;
+osThreadId canFifo0Handle;
+osThreadId canFifo1Handle;
 /* USER CODE BEGIN PV */
 
 SERVO_CONTROL servo;
@@ -87,6 +89,8 @@ static void MX_CAN_Init(void);
 static void MX_SPI2_Init(void);
 static void MX_OPAMP2_Init(void);
 void StartServoUpdateTask(void const * argument);
+void startCanFifo0(void const * argument);
+void StartCanFifo1(void const * argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -139,25 +143,16 @@ int main(void)
   MX_OPAMP2_Init();
   /* USER CODE BEGIN 2 */
 
-  /*   CAN MESSAGE TEST   */
-  CAN_Init(&servo.can, &hcan, 1);
-  uint8_t TxData[] = {0x1,0x2};
-  CAN_SendDataFrame(&servo.can, TxData, 2, PRIORITY_CRITICAL, 0x1);
-
   /*   Initialisation sequence   */
-  servoInit		(&servo);
-  encoderInit	(&servo, &hspi1, SPI1_CS_GPIO_Port, SPI1_CS_Pin);
-  motorInit		(&servo, &htim2, TIM_CHANNEL_1, hswA_GPIO_Port, hswA_Pin, hswB_GPIO_Port, hswB_Pin);
-  sensorsInit	(&servo, &hadc1, &hadc2, &hadc3, &hadc4, &hopamp2);
-  pidInit		(&servo);
-  imuInit		(&servo, &hspi2, SPI2_CS_GPIO_Port, SPI2_CS_Pin);
+    servoInit	(&servo);
+    encoderInit	(&servo, &hspi1, SPI1_CS_GPIO_Port, SPI1_CS_Pin);
+    motorInit	(&servo, &htim2, TIM_CHANNEL_1, hswA_GPIO_Port, hswA_Pin, hswB_GPIO_Port, hswB_Pin);
+    sensorsInit	(&servo, &hadc1, &hadc2, &hadc3, &hadc4, &hopamp2);
+    pidInit		(&servo);
+    imuInit		(&servo, &hspi2, SPI2_CS_GPIO_Port, SPI2_CS_Pin);
 
-  /*TEMP!!!!!!!!!!!*/
-
-  torqueEnable(&servo);
-
-
-
+    /* make proper! in motor.c/.h*/
+    CAN_Init	(&servo.can, &hcan, 1);
 
   /* USER CODE END 2 */
 
@@ -182,8 +177,32 @@ int main(void)
   osThreadDef(servoUpdate, StartServoUpdateTask, osPriorityRealtime, 0, 512);
   servoUpdateHandle = osThreadCreate(osThread(servoUpdate), NULL);
 
+  /* definition and creation of canFifo0 */
+  osThreadDef(canFifo0, startCanFifo0, osPriorityAboveNormal, 0, 128);
+  canFifo0Handle = osThreadCreate(osThread(canFifo0), NULL);
+
+  /* definition and creation of canFifo1 */
+  osThreadDef(canFifo1, StartCanFifo1, osPriorityNormal, 0, 128);
+  canFifo1Handle = osThreadCreate(osThread(canFifo1), NULL);
+
   /* USER CODE BEGIN RTOS_THREADS */
-  /* add threads, ... */
+
+  /*   Pause can inbox read functions   */
+  vTaskSuspend(canFifo0Handle);
+  vTaskSuspend(canFifo1Handle);
+
+  /*   Link task handles to struct   */
+  servo.can.taskFIFO0 = canFifo0Handle;
+  servo.can.taskFIFO1 = canFifo1Handle;
+
+  /*   Activate CAN callback functions   */
+  CAN_ActivateCallback(&servo.can);
+
+/*TEMP!!!!!!!!!!!!!!!!!!!!!!!!!!!*/
+  torqueEnable(&servo);
+
+
+
   /* USER CODE END RTOS_THREADS */
 
   /* Start scheduler */
@@ -789,6 +808,25 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
+/*   CAN Message receive callback   */
+void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan) {
+
+	/*   Deactivate callback   */
+	HAL_CAN_DeactivateNotification(hcan, CAN_IT_RX_FIFO0_MSG_PENDING);
+
+	/*   Allow start of CAN read task    */
+	xTaskResumeFromISR(servo.can.taskFIFO0);
+}
+
+void HAL_CAN_RxFifo1MsgPendingCallback(CAN_HandleTypeDef *hcan) {
+
+	/*   Deactivate callback   */
+	HAL_CAN_DeactivateNotification(hcan, CAN_IT_RX_FIFO1_MSG_PENDING);
+
+	/*   Allow start of CAN read task    */
+	xTaskResumeFromISR(servo.can.taskFIFO1);
+}
+
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartServoUpdateTask */
@@ -810,13 +848,17 @@ void StartServoUpdateTask(void const * argument)
 
 	/*   Sensors update   */
 	sensorsUpdate	(&servo);
+	imuUpdateAngle  (&servo);
 	encoderUpdate	(&servo);
+
+	/*   Sensor fault range check   */
+	sensorsCheck    (&servo);
 
 	/*   Motion update sequence   */
 	motionPorfile	(&servo);
 	pidUpdate		(&servo);
 	motorUpdatePWM	(&servo);
-	imuUpdateAngle(&servo);
+
 
 	sprintf(str, "%.2f \t %.2f \t%.2f \t%.2f \t\n", 1.0f * servo.imu.extAngleX, 1.0f * servo.imu.extAngleY, servo.velocity * 1.0f, servo.motorCurrent.converData / 1000.0f);
 	HAL_UART_Transmit(&huart2, (uint8_t *)str, strlen((char*)str), HAL_MAX_DELAY);
@@ -858,13 +900,77 @@ void StartServoUpdateTask(void const * argument)
 	 	 				count = 0;
 	 	 		 	}
 	 	count += 1;
-    osDelay(servo.PID.samplePeriod);		//Set period to be same as PID sample time
+    osDelay(servo.PID.samplePeriod);				//Set period to be same as PID sample time
 
   }
 
-  osThreadTerminate(NULL);	// In case of accidental break from for loop
+  osThreadTerminate( NULL );						// In case of accidental break from for loop
 
   /* USER CODE END 5 */
+}
+
+/* USER CODE BEGIN Header_startCanFifo0 */
+/**
+* @brief Function implementing the canFifo0 thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_startCanFifo0 */
+void startCanFifo0(void const * argument)
+{
+  /* USER CODE BEGIN startCanFifo0 */
+  /* Infinite loop */
+  for(;;)
+  {
+
+	  /*   Read CAN frame, execute instruction   */
+	  processCanMessages(&servo, CAN_RX_FIFO0);
+
+	  /*   Activate callback   */
+	  HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO0_MSG_PENDING);
+
+	  /*   Disable task   */
+	  vTaskSuspend( NULL );
+
+	  osDelay(1);						// Run whenever open slot
+
+  }
+
+  osThreadTerminate( NULL );		// In case of accidental break from for loop
+
+  /* USER CODE END startCanFifo0 */
+}
+
+/* USER CODE BEGIN Header_StartCanFifo1 */
+/**
+* @brief Function implementing the canFifo1 thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartCanFifo1 */
+void StartCanFifo1(void const * argument)
+{
+  /* USER CODE BEGIN StartCanFifo1 */
+  /* Infinite loop */
+  for(;;)
+  {
+
+	  /*   Read CAN frame, execute instruction   */
+	  processCanMessages(&servo, CAN_RX_FIFO1);
+
+	  /*   Activate callback   */
+	  HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO1_MSG_PENDING);
+
+	  /*   Disable task   */
+	  vTaskSuspend( NULL );
+
+	  osDelay(1);						// Run whenever open slot
+
+  }
+
+  osThreadTerminate( NULL );		// In case of accidental break from for loop
+
+  /* USER CODE END StartCanFifo1 */
 }
 
 /**
