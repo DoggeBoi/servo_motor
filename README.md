@@ -17,7 +17,7 @@ This repository contains a proof-of-concept project demonstrating the control of
 - Automatic shutdown in case of detected failure.
 - ~~LSM6SDO 3-axis angle sensing using 6-axis IMU and a complementary filter~~ 23/06/24.
 - ~~Current sensing using internal opamp~~ 24/06/24.
-- ~~Complete CAN driver with exact memory mapping.~~ 24/07/02.
+- ~~Complete CAN driver with exact memory mapping.~~ 02/07/24.
 
 # Testing setup as of 19/06/24
 ![IMG_20240619_185021659](https://github.com/DoggeBoi/servo_motor/assets/59169880/0492c42f-4054-40ac-a414-125c2da43139)
