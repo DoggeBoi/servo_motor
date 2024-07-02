@@ -106,10 +106,24 @@ void CAN_SendDataFrame(CANBUS *canbus, uint8_t *TxData, uint8_t dataLenght, uint
 	TxHeader.ExtId 					= canbus->canMasterID << 8;
 	TxHeader.ExtId 				   |= operationId;
 
-	/*   Add can frame to transmission mailbox   */
-	HAL_CAN_AddTxMessage(canbus->canHandle, &TxHeader, TxData, &canbus->canTxMailbox);
+	/*   Wait for Tx mailbox slot to become available   */
+	while ( HAL_CAN_GetTxMailboxesFreeLevel(canbus->canHandle) == 0 );
+
+	/*   Find empty Tx mailbox   */
+	for ( uint8_t i = 0; i <= 2; i++) {
+
+		/*   If Tx mailbox empty   */
+		if ( HAL_CAN_IsTxMessagePending(canbus->canHandle, canbus->canTxMailbox[i] ) == 0 ) {
+
+			/*   Add can frame to transmission mailbox   */
+			HAL_CAN_AddTxMessage(canbus->canHandle, &TxHeader, TxData, &canbus->canTxMailbox[i]);
+
+		}
+
+	}
 
 }
+
 
 /*   Unpack frame from Rx mailbox*/
 void CAN_GetFrame(CANBUS *canbus, uint32_t RxFifo, uint8_t *RxData, uint8_t *senderId, uint8_t *operationId, uint8_t *priority) {

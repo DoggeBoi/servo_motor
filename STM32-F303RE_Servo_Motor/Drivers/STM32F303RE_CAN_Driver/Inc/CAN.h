@@ -24,7 +24,7 @@ typedef struct {
 	uint8_t canMasterID;
 
 	/*   CAN bus transmission mailbox   */
-	uint32_t canTxMailbox;
+	uint32_t canTxMailbox[3];
 
 	/*   freeRTOS task IDs   */
 	osThreadId taskFIFO0;
@@ -50,6 +50,7 @@ void CAN_SendDataFrame(CANBUS *canbus, uint8_t *TxData, uint8_t dataLenght, uint
 
 /*   Unpack frame from Rx mailbox*/
 void CAN_GetFrame(CANBUS *canbus, uint32_t RxFifo, uint8_t *RxData, uint8_t *senderId, uint8_t *operationId, uint8_t *priority);
+
 
 #endif /* CAN_INC_CAN_H */
 

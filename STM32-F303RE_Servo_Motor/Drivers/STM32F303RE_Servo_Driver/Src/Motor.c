@@ -59,9 +59,22 @@ void servoInit(SERVO_CONTROL *servo) {
 	servo->profile.trajectoryVelocity 		= 0;
 
 	/*   Operation function array   */
-	servo->OperationFunctions[0] = writeSingle;
-	servo->OperationFunctions[1] = readSingle;
-
+	servo->OperationFunctions[0] 	= (void*)writeSingle;
+	servo->OperationFunctions[1] 	= (void*)readSingle;
+	servo->OperationFunctions[2] 	= (void*)torqueOnCommand;
+	servo->OperationFunctions[3] 	= (void*)torqueOffCommand;
+	servo->OperationFunctions[4] 	= (void*)startupCommand;
+	servo->OperationFunctions[5] 	= (void*)shutdownCommand;
+	servo->OperationFunctions[6] 	= (void*)writeConfig1;
+	servo->OperationFunctions[7] 	= (void*)writeConfig2;
+	servo->OperationFunctions[8] 	= (void*)writeConfig3;
+	servo->OperationFunctions[9] 	= (void*)writeConfig4;
+	servo->OperationFunctions[10] 	= (void*)writeConfig5;
+	servo->OperationFunctions[11] 	= (void*)readconfig1;
+	servo->OperationFunctions[12] 	= (void*)readconfig2;
+	servo->OperationFunctions[13] 	= (void*)readconfig3;
+	servo->OperationFunctions[14] 	= (void*)readconfig4;
+	servo->OperationFunctions[15] 	= (void*)readconfig5;
 
 
 	/*   Variable addressable list   */
@@ -471,7 +484,7 @@ void pidUpdate(SERVO_CONTROL *servo) {
 	servo->PID.extIntegrator			= servo->PID.integrator;
 
     /*   Update inMotion variable   */
-    servo->inMotion = ( abs( servo->velocity ) >= servo->motionThreshold );			// 1 if motion is above threshold
+    servo->inMotion = ( ( abs( servo->velocity ) >= servo->motionThreshold ) || ( abs( servo->acceleration ) >= servo->motionThreshold ) );			// 1 if velocity or acceleration is above threshold, only 0 if stationary and not changing velocity.
 
 }
 
@@ -722,7 +735,9 @@ void torqueDisable(SERVO_CONTROL *servo) {
 }
 
 
-void torqueEnable(SERVO_CONTROL *servo) {
+void torqueEnable(SERVO_CONTROL *servo, uint8_t direction) {
+
+	servo->motionDirection = direction;
 
 	encoderUpdate	(servo);
 	servo->goalPosition = servo->encoder.angle;
@@ -739,8 +754,38 @@ void errorHandeler(SERVO_CONTROL *servo) {
 }
 
 
+/*   Higher level CAN-bus functions   */
+void processCanMessages(SERVO_CONTROL *servo, uint32_t RxFifo) {
+
+	/*   Initialise message data variables   */
+	uint8_t 			RxBuf[8];
+	uint8_t 			operationId;
+	uint8_t				senderId;
+	uint8_t				priority;
+
+	/*   While new messages are available   */
+	while (  HAL_CAN_GetRxFifoFillLevel(servo->can.canHandle, RxFifo) > 0 ) {
+
+		/*   Get message   */
+		CAN_GetFrame(&servo->can, RxFifo, RxBuf, &senderId, &operationId, &priority);
+
+		/*   Check if operation id is within range and operation is defined    */
+		if ( ( operationId < 15 ) && ( servo->OperationFunctions[operationId] != NULL ) ) {
+
+			/*   Call operation function   */
+			OperationFucntionPointer function = ( OperationFucntionPointer ) servo->OperationFunctions[operationId];
+
+			function(servo, RxBuf, servo->variables, servo->readWritePrivlages, servo->variablesSize, operationId, priority);
+
+		}
+
+	}
+
+}
+
+
 /*   Operation functions   */
-void writeSingle(CANBUS *canbus, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority) {
+void writeSingle(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority) {
 
 	/*   Initialise address variable   */
 	uint8_t adress = RxBuf[0];
@@ -765,12 +810,12 @@ void writeSingle(CANBUS *canbus, uint8_t *RxBuf, void** variables, uint8_t* read
 	}
 
 	/*   Send back read message   */
-	readSingle(canbus, RxBuf, variables, readWritePrivlages, variablesSize, operationId, priority);		// Value wont have changed if above if statement  in false;
+	readSingle(servo, RxBuf, variables, readWritePrivlages, variablesSize, operationId, priority);		// Value wont have changed if above if statement  in false;
 
 }
 
 
-void readSingle(CANBUS *canbus, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority) {
+void readSingle(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority) {
 
 	/*   Initialise address variable   */
 	uint8_t adress = RxBuf[0];
@@ -794,7 +839,7 @@ void readSingle(CANBUS *canbus, uint8_t *RxBuf, void** variables, uint8_t* readW
 			TxBuf[1] = ( readData >> 8 ) & 0xFF;
 			TxBuf[2] =   readData        & 0xFF;
 
-			CAN_SendDataFrame(canbus, TxBuf, 3, priority, operationId);
+			CAN_SendDataFrame(&servo->can, TxBuf, 3, priority, operationId);
 
 		}
 
@@ -812,56 +857,209 @@ void readSingle(CANBUS *canbus, uint8_t *RxBuf, void** variables, uint8_t* readW
 			/*   Set data bytes in array   */
 			TxBuf[1] = readData;
 
-			CAN_SendDataFrame(canbus, TxBuf, 2, priority, operationId);
-
-		}
-
-	}
-
-	/*   If address is outside range   */
-	else {
-
-
-
-	}
-
-
-}
-
-
-/*   Higher level CAN-bus functions   */
-void processCanMessages(SERVO_CONTROL *servo, uint32_t RxFifo) {
-
-	/*   Initialise message data variables   */
-	uint8_t 			RxBuf[8];
-	uint8_t 			operationId;
-	uint8_t				senderId;
-	uint8_t				priority;
-
-	/*   While new messages are available   */
-	while (  HAL_CAN_GetRxFifoFillLevel(servo->can.canHandle, RxFifo) > 0 ) {
-
-		/*   Get message   */
-		CAN_GetFrame(&servo->can, RxFifo, RxBuf, &senderId, &operationId, &priority);
-
-		/*   Check if operation id is within range and operation is defined    */
-		if ( ( operationId < 255 ) && ( servo->OperationFunctions[operationId] != NULL ) ) {
-
-			/*   Call operation function   */
-			servo->OperationFunctions[operationId](&servo->can, RxBuf, servo->variables, servo->readWritePrivlages, servo->variablesSize, operationId, priority);
-
-		}
-
-		/*   Operation ID not defined or outside range   */
-		else {
-
-			// No operation
+			/*   Send response frame   */
+			CAN_SendDataFrame(&servo->can, TxBuf, 2, priority, operationId);
 
 		}
 
 	}
 
 }
+
+
+void torqueOnCommand(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority) {
+
+	/*   Servo  command    */
+	torqueEnable(servo, RxBuf[0] );		// First byte is direction
+
+	/*   Initialise transmission buffer   */
+	uint8_t TxBuf[2];
+
+	/*   Set read torqueEnable byte   */
+	TxBuf[0] = *(uint8_t*)variables[18];
+
+	/*   Set read motionDirection byte   */
+	TxBuf[1] = *(uint8_t*)variables[19];
+
+	/*   Send response frame   */
+	CAN_SendDataFrame(&servo->can, TxBuf, 2, priority, operationId);
+
+}
+
+void torqueOffCommand(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority) {
+
+	/*   Servo  command    */
+	torqueDisable(servo);
+
+	/*   Initialise transmission buffer   */
+	uint8_t TxBuf[1];
+
+	/*   Set read torqueEnable byte   */
+	TxBuf[0] = *(uint8_t*)variables[18];
+
+	/*   Send response frame   */
+	CAN_SendDataFrame(&servo->can, TxBuf, 1, priority, operationId);
+
+}
+
+
+void startupCommand		(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority) {
+
+	//TO do
+
+}
+
+
+void shutdownCommand	(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority) {
+
+	//TO do
+
+}
+
+
+void writeConfig1		(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority) {
+
+	/*   Write values    */
+	*(uint16_t*)variables[0] = ( ( RxBuf[0] << 8 ) | RxBuf[1] );	// Kp
+	*(uint16_t*)variables[1] = ( ( RxBuf[2] << 8 ) | RxBuf[3] );	// Ki
+	*(uint16_t*)variables[2] = ( ( RxBuf[4] << 8 ) | RxBuf[5] );	// Kd
+	*(uint16_t*)variables[5] = ( ( RxBuf[6] << 8 ) | RxBuf[7] );	// Lpf
+
+}
+
+void writeConfig2		(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority) {
+
+	/*   Write values    */
+	*(uint16_t*)variables[10] = ( ( RxBuf[0] << 8 ) | RxBuf[1] );	// maxAcceleration
+	*(uint16_t*)variables[11] = ( ( RxBuf[2] << 8 ) | RxBuf[3] );	// maxVelocity
+	*(uint16_t*)variables[14] = ( ( RxBuf[4] << 8 ) | RxBuf[5] );	// followingThreshold
+	*(uint16_t*)variables[30] = ( ( RxBuf[6] << 8 ) | RxBuf[7] );	// motionThreshold
+
+}
+
+void writeConfig3		(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority) {
+
+	/*   Write values    */
+	*(uint16_t*)variables[20] = ( ( RxBuf[0] << 8 ) | RxBuf[1] );	// maxMotorTemp
+	*(uint16_t*)variables[21] = ( ( RxBuf[2] << 8 ) | RxBuf[3] );	// maxIntTemp
+	*(uint16_t*)variables[22] = ( ( RxBuf[4] << 8 ) | RxBuf[5] );	// maxVoltage
+	*(uint16_t*)variables[23] = ( ( RxBuf[6] << 8 ) | RxBuf[7] );	// minVoltage
+
+}
+
+void writeConfig4		(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority) {
+
+	/*   Write values    */
+	*(uint16_t*)variables[24] = ( ( RxBuf[0] << 8 ) | RxBuf[1] );	// maxCurrent
+	*(uint16_t*)variables[25] = ( ( RxBuf[2] << 8 ) | RxBuf[3] );	// maxPosition
+	*(uint16_t*)variables[26] = ( ( RxBuf[4] << 8 ) | RxBuf[5] );	// minPosition
+
+}
+
+void writeConfig5		(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority) {
+
+	/*   Write values    */
+	*(uint8_t*)variables[33] = RxBuf[0];	// ADC - int temp 			- extIIRFilterCoefficient
+	*(uint8_t*)variables[35] = RxBuf[1];	// ADC - motor temp 		- extIIRFilterCoefficien
+	*(uint8_t*)variables[37] = RxBuf[2];	// ADC - battery voltage 	- extIIRFilterCoefficient
+	*(uint8_t*)variables[39] = RxBuf[3];	// ADC - current motor 		- extIIRFilterCoefficient
+	*(uint8_t*)variables[42] = RxBuf[4];	// frictionCompensation
+	*(uint8_t*)variables[43] = RxBuf[5];	// extIIRFilterCoefficient
+	*(uint8_t*)variables[44] = RxBuf[6];	// extCFilterCoefficient
+
+}
+
+
+void readconfig1			(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority) {
+
+	/*   Initialise transmission buffer   */
+	uint16_t TxBuf[4];
+
+	/*   Read values   */
+	TxBuf[0] =  *(uint16_t*)variables[0];
+	TxBuf[1] =  *(uint16_t*)variables[1];
+	TxBuf[2] =  *(uint16_t*)variables[2];
+	TxBuf[3] =  *(uint16_t*)variables[5];
+
+	/*   Send back response frame to confirm change   */
+	CAN_SendDataFrame(&servo->can, (uint8_t*)TxBuf, 8, priority, 11);
+
+}
+
+void readconfig2			(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority) {
+
+	/*   Initialise transmission buffer   */
+	uint16_t TxBuf[3];
+
+	/*   Read values   */
+	TxBuf[0] =  *(uint16_t*)variables[10];
+	TxBuf[1] =  *(uint16_t*)variables[11];
+	TxBuf[2] =  *(uint16_t*)variables[14];
+	TxBuf[3] =  *(uint16_t*)variables[30];
+
+	/*   Send back response frame to confirm change   */
+	CAN_SendDataFrame(&servo->can, (uint8_t*)TxBuf, 6, priority, 12);
+
+
+}
+
+void readconfig3			(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority) {
+
+	/*   Initialise transmission buffer   */
+	uint16_t TxBuf[4];
+
+	/*   Read values   */
+	TxBuf[0] =  *(uint16_t*)variables[20];
+	TxBuf[1] =  *(uint16_t*)variables[21];
+	TxBuf[2] =  *(uint16_t*)variables[22];
+	TxBuf[3] =  *(uint16_t*)variables[23];
+
+	/*   Send back response frame to confirm change   */
+	CAN_SendDataFrame(&servo->can, (uint8_t*)TxBuf, 8, priority, 13);
+
+}
+
+void readconfig4			(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority) {
+
+	/*   Initialise transmission buffer   */
+	uint16_t TxBuf[4];
+
+	/*   Read values   */
+	TxBuf[0] =  *(uint16_t*)variables[24];
+	TxBuf[1] =  *(uint16_t*)variables[25];
+	TxBuf[2] =  *(uint16_t*)variables[26];
+
+	/*   Send back response frame to confirm change   */
+	CAN_SendDataFrame(&servo->can, (uint8_t*)TxBuf, 8, priority, 14);
+
+}
+
+void readconfig5			(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority) {
+
+	/*   Initialise transmission buffer   */
+	uint8_t TxBuf[7];
+
+	/*   Read values   */
+	TxBuf[0] =  *(uint8_t*)variables[33];
+	TxBuf[1] =  *(uint8_t*)variables[35];
+	TxBuf[2] =  *(uint8_t*)variables[37];
+	TxBuf[3] =  *(uint8_t*)variables[39];
+	TxBuf[4] =  *(uint8_t*)variables[42];
+	TxBuf[5] =  *(uint8_t*)variables[43];
+	TxBuf[6] =  *(uint8_t*)variables[44];
+
+	/*   Send back response frame to confirm change   */
+	CAN_SendDataFrame(&servo->can, TxBuf, 7, priority, 15);
+
+}
+
+
+void writeStandard		(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority) {
+
+
+
+}
+
 
 
 

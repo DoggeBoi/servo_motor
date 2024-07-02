@@ -69,6 +69,7 @@ UART_HandleTypeDef huart2;
 osThreadId servoUpdateHandle;
 osThreadId canFifo0Handle;
 osThreadId canFifo1Handle;
+osThreadId canOutputHandle;
 /* USER CODE BEGIN PV */
 
 SERVO_CONTROL servo;
@@ -91,6 +92,7 @@ static void MX_OPAMP2_Init(void);
 void StartServoUpdateTask(void const * argument);
 void startCanFifo0(void const * argument);
 void StartCanFifo1(void const * argument);
+void StartCanOutput(void const * argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -185,11 +187,16 @@ int main(void)
   osThreadDef(canFifo1, StartCanFifo1, osPriorityNormal, 0, 128);
   canFifo1Handle = osThreadCreate(osThread(canFifo1), NULL);
 
+  /* definition and creation of canOutput */
+  osThreadDef(canOutput, StartCanOutput, osPriorityIdle, 0, 128);
+  canOutputHandle = osThreadCreate(osThread(canOutput), NULL);
+
   /* USER CODE BEGIN RTOS_THREADS */
 
   /*   Pause can inbox read functions   */
   vTaskSuspend(canFifo0Handle);
   vTaskSuspend(canFifo1Handle);
+  vTaskSuspend(canOutputHandle);
 
   /*   Link task handles to struct   */
   servo.can.taskFIFO0 = canFifo0Handle;
@@ -199,7 +206,7 @@ int main(void)
   CAN_ActivateCallback(&servo.can);
 
 /*TEMP!!!!!!!!!!!!!!!!!!!!!!!!!!!*/
-  torqueEnable(&servo);
+  torqueEnable(&servo, 1);
 
 
 
@@ -971,6 +978,24 @@ void StartCanFifo1(void const * argument)
   osThreadTerminate( NULL );		// In case of accidental break from for loop
 
   /* USER CODE END StartCanFifo1 */
+}
+
+/* USER CODE BEGIN Header_StartCanOutput */
+/**
+* @brief Function implementing the canOutput thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartCanOutput */
+void StartCanOutput(void const * argument)
+{
+  /* USER CODE BEGIN StartCanOutput */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(SERVO_OUTPUT_INTERVAL);
+  }
+  /* USER CODE END StartCanOutput */
 }
 
 /**
