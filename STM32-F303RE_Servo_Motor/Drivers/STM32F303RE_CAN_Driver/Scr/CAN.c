@@ -1,7 +1,7 @@
 
 #include "CAN.h"
 
-uint8_t CAN_Init(CANBUS *canbus, CAN_HandleTypeDef *canHandle, uint8_t canDeviceID) {
+uint8_t CAN_Init(CANBUS *canbus, CAN_HandleTypeDef *canHandle, uint8_t canDeviceID, uint8_t canMasterID) {
 
 	/*   Initialise status variable   */
 	uint8_t status = 0;
@@ -9,7 +9,7 @@ uint8_t CAN_Init(CANBUS *canbus, CAN_HandleTypeDef *canHandle, uint8_t canDevice
 	/*   Initialise CAN parameters   */
 	canbus->canHandle 	= canHandle;
 	canbus->canDeviceID = canDeviceID;
-	canbus->canMasterID = CAN_MASTER_ID;
+	canbus->canMasterID = canMasterID;
 
 	/*   Initialise CAN filter parameters   */
 	status += CAN_SetFilter(canbus);

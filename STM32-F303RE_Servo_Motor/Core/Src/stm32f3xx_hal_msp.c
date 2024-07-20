@@ -1,3 +1,4 @@
+
 /* USER CODE BEGIN Header */
 /**
   ******************************************************************************
@@ -288,6 +289,7 @@ void HAL_CAN_MspInit(CAN_HandleTypeDef* hcan)
   /* USER CODE BEGIN CAN_MspInit 1 */
 
   /* USER CODE END CAN_MspInit 1 */
+
   }
 
 }
@@ -365,6 +367,7 @@ void HAL_OPAMP_MspInit(OPAMP_HandleTypeDef* hopamp)
   /* USER CODE BEGIN OPAMP2_MspInit 1 */
 
   /* USER CODE END OPAMP2_MspInit 1 */
+
   }
 
 }
@@ -540,6 +543,7 @@ void HAL_TIM_Base_MspInit(TIM_HandleTypeDef* htim_base)
   /* USER CODE BEGIN TIM2_MspInit 1 */
 
   /* USER CODE END TIM2_MspInit 1 */
+
   }
 
 }
@@ -624,6 +628,7 @@ void HAL_UART_MspInit(UART_HandleTypeDef* huart)
   /* USER CODE BEGIN USART2_MspInit 1 */
 
   /* USER CODE END USART2_MspInit 1 */
+
   }
 
 }

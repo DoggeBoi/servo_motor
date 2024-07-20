@@ -11,9 +11,6 @@
 #define PRIORITY_MODERATE		2
 #define PRIORITY_LOW			3
 
-/*   Define ID of can master node   */
-#define CAN_MASTER_ID           0x00000000
-
 typedef struct {
 
 	/*   CAN bus handle   */
@@ -33,7 +30,7 @@ typedef struct {
 } CANBUS;
 
 /*   Initialisation   */
-uint8_t CAN_Init(CANBUS *canbus, CAN_HandleTypeDef *canHandle, uint8_t canDeviceID);
+uint8_t CAN_Init(CANBUS *canbus, CAN_HandleTypeDef *canHandle, uint8_t canDeviceID, uint8_t canMasterID);
 
 
 /*   Activate CAN callbacks   */

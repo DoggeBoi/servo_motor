@@ -13,6 +13,7 @@
 
 /*   Device information   */
 #define ID							1						// 8 bit Device ID
+#define MASTER_ID					0
 #define FIRMWARE_VERSION			1
 
 /*   Motion direction   */
@@ -175,7 +176,8 @@ typedef struct {
 typedef struct {
 
 	/*   Version and ID   */
-	uint8_t  	id;										// 5 bit CAN motor identifier
+	uint8_t  	id;										// 8 bit CAN motor identifier
+	uint8_t		masterId;							    // 8 bit CAN master identifier
 	uint8_t  	firmwareVer;							// Firmware version
 
 	/*   Position and drive status   */
@@ -230,7 +232,7 @@ typedef struct {
 	uint16_t 	motionThreshold;							// Threshold velocity to be considered moving
 
 	/*   Operation function array   */
-	void* 		OperationFunctions	[16];
+	void* 		OperationFunctions	[22];
 
 	/*   Variable addressable list   */
 	void*		variables			[47];
@@ -240,7 +242,7 @@ typedef struct {
 } SERVO_CONTROL;
 
 /*   Operation function pointer   */
-typedef void (*OperationFucntionPointer)(SERVO_CONTROL*, uint8_t*, void**, uint8_t*, uint8_t*, uint8_t, uint8_t);
+typedef void (*OperationFucntionPointer)(SERVO_CONTROL*, uint8_t*, uint8_t, uint8_t);
 
 
 /*   Servo value initialisation   */
@@ -249,6 +251,10 @@ void servoInit(SERVO_CONTROL *servo);
 
 /*   PID value initialisation   */
 void pidInit(SERVO_CONTROL *servo);
+
+
+/*   Initialise can bus */
+void canInit(SERVO_CONTROL *servo, CAN_HandleTypeDef *canHandle);
 
 
 /*   PID calculate and update   */
@@ -305,43 +311,41 @@ void torqueDisable(SERVO_CONTROL *servo);
 void torqueEnable(SERVO_CONTROL *servo, uint8_t direction);
 
 
+/*   Status led control function   */
+void ledSet(uint8_t Red, uint8_t Green, uint8_t Blue);
+
+
 /*   Higher level CAN-bus functions   */
 void processCanMessages(SERVO_CONTROL *servo, uint32_t RxFifo);
 
+/*   Configuration data split and join function  */
+void configSplit(SERVO_CONTROL *servo, uint8_t *RxBuf, uint8_t *addressList, uint8_t listLenght);
+
+void configJoin(SERVO_CONTROL *servo, uint8_t *TxBuf, uint8_t *addressList, uint8_t listLenght);
 
 /*   Operation functions   */
-void writeSingle		(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority);
+void writeSingle		(SERVO_CONTROL *servo, uint8_t *RxBuf, uint8_t operationId, uint8_t priority);
+void readSingle			(SERVO_CONTROL *servo, uint8_t *RxBuf, uint8_t operationId, uint8_t priority);
+void torqueOnCommand	(SERVO_CONTROL *servo, uint8_t *RxBuf, uint8_t operationId, uint8_t priority);
+void torqueOffCommand	(SERVO_CONTROL *servo, uint8_t *RxBuf, uint8_t operationId, uint8_t priority);
+void startupCommand		(SERVO_CONTROL *servo, uint8_t *RxBuf, uint8_t operationId, uint8_t priority);
+void shutdownCommand	(SERVO_CONTROL *servo, uint8_t *RxBuf, uint8_t operationId, uint8_t priority);
+void writeConfig1		(SERVO_CONTROL *servo, uint8_t *RxBuf, uint8_t operationId, uint8_t priority);
+void writeConfig2		(SERVO_CONTROL *servo, uint8_t *RxBuf, uint8_t operationId, uint8_t priority);
+void writeConfig3		(SERVO_CONTROL *servo, uint8_t *RxBuf, uint8_t operationId, uint8_t priority);
+void writeConfig4		(SERVO_CONTROL *servo, uint8_t *RxBuf, uint8_t operationId, uint8_t priority);
+void writeConfig5		(SERVO_CONTROL *servo, uint8_t *RxBuf, uint8_t operationId, uint8_t priority);
+void readconfig1		(SERVO_CONTROL *servo, uint8_t *RxBuf, uint8_t operationId, uint8_t priority);
+void readconfig2		(SERVO_CONTROL *servo, uint8_t *RxBuf, uint8_t operationId, uint8_t priority);
+void readconfig3		(SERVO_CONTROL *servo, uint8_t *RxBuf, uint8_t operationId, uint8_t priority);
+void readconfig4		(SERVO_CONTROL *servo, uint8_t *RxBuf, uint8_t operationId, uint8_t priority);
+void readconfig5		(SERVO_CONTROL *servo, uint8_t *RxBuf, uint8_t operationId, uint8_t priority);
+void writeInStandard	(SERVO_CONTROL *servo, uint8_t *RxBuf, uint8_t operationId, uint8_t priority);
+void readInStandard		(SERVO_CONTROL *servo, uint8_t *RxBuf, uint8_t operationId, uint8_t priority);
+void readStandard1		(SERVO_CONTROL *servo, uint8_t *RxBuf, uint8_t operationId, uint8_t priority);
+void readStandard2		(SERVO_CONTROL *servo, uint8_t *RxBuf, uint8_t operationId, uint8_t priority);
+void readStandard3		(SERVO_CONTROL *servo, uint8_t *RxBuf, uint8_t operationId, uint8_t priority);
+void readStandard4		(SERVO_CONTROL *servo, uint8_t *RxBuf, uint8_t operationId, uint8_t priority);
 
-void readSingle			(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority);
-
-void torqueOnCommand	(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority);
-
-void torqueOffCommand	(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority);
-
-void startupCommand		(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority);
-
-void shutdownCommand	(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority);
-
-void writeConfig1		(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority);
-
-void writeConfig2		(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority);
-
-void writeConfig3		(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority);
-
-void writeConfig4		(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority);
-
-void writeConfig5		(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority);
-
-void readconfig1		(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority);
-
-void readconfig2		(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority);
-
-void readconfig3		(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority);
-
-void readconfig4		(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority);
-
-void readconfig5		(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority);
-
-void writeStandard		(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority);
 
 #endif /* STM32F303RE_SERVO_DRIVER_INC_MOTOR_H */

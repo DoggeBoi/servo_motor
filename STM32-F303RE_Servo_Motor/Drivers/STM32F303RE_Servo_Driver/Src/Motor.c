@@ -1,4 +1,5 @@
 
+#include "main.h"
 #include "Motor.h"
 #include "AS5048A.h"
 #include "ADC.h"
@@ -13,6 +14,7 @@ void servoInit(SERVO_CONTROL *servo) {
 
 	/*   Initialise ID and version   */
 	servo->id 								= ID;
+	servo->masterId							= MASTER_ID;
 	servo->firmwareVer 						= FIRMWARE_VERSION;
 
 	/*   Disable torque   */
@@ -75,7 +77,12 @@ void servoInit(SERVO_CONTROL *servo) {
 	servo->OperationFunctions[13] 	= (void*)readconfig3;
 	servo->OperationFunctions[14] 	= (void*)readconfig4;
 	servo->OperationFunctions[15] 	= (void*)readconfig5;
-
+	servo->OperationFunctions[16] 	= (void*)writeInStandard;
+	servo->OperationFunctions[17] 	= (void*)readInStandard;
+	servo->OperationFunctions[18] 	= (void*)readStandard1;
+	servo->OperationFunctions[19] 	= (void*)readStandard2;
+	servo->OperationFunctions[20] 	= (void*)readStandard3;
+	servo->OperationFunctions[21] 	= (void*)readStandard4;
 
 	/*   Variable addressable list   */
 	void *variablesCopyFrom[47] = {
@@ -293,12 +300,12 @@ void encoderInit(SERVO_CONTROL *servo, SPI_HandleTypeDef *spiHandle, GPIO_TypeDe
 }
 
 /*   CAN-bus initialisation    */
-void canInit(SERVO_CONTROL *servo, CAN_HandleTypeDef *canHandle, uint8_t canDeviceID) {
+void canInit(SERVO_CONTROL *servo, CAN_HandleTypeDef *canHandle) {
 
 	/*   Initialise status variable   */
 	uint8_t status = 0;
 
-	status += CAN_Init(&servo->can, canHandle, canDeviceID);
+	status += CAN_Init(&servo->can, canHandle, servo->id, servo->masterId);
 
 	/*   Check status   */
 	if ( status != 0 ) {
@@ -344,7 +351,7 @@ void sensorsInit(SERVO_CONTROL *servo, ADC_HandleTypeDef *adcHandle0, ADC_Handle
 
 	status += adcSensorInit(&servo->batteryVoltage, 	rawToVoltage, 	adcHandle2);
 
-	status += adcSensorInit(&servo->motorTemp, 		rawToMotorTemp, adcHandle3);
+	status += adcSensorInit(&servo->motorTemp, 			rawToMotorTemp, adcHandle3);
 
 	/*   Start current sensing opamp   */
 	status += HAL_OPAMP_Start(hopamp);
@@ -412,7 +419,6 @@ void pidInit(SERVO_CONTROL *servo) {
 	servo->PID.integrator	  	= 	0;
 
 }
-
 
 /*   PID calculate and update   */
 void pidUpdate(SERVO_CONTROL *servo) {
@@ -577,10 +583,10 @@ void motionPorfile(SERVO_CONTROL *servo) {
 			servo->profile.trajectoryDecelerationTime		= (float) abs(servo->profile.trajectoryStartVelocity) / (float) servo->profile.maxAcceleration;
 
 			/*   Set direction to that of the deceleration of SERVO_PROFILE_SPLIT_1 and not full move   */
-			servo->profile.trajectoryDirection = ( servo->profile.trajectoryStartVelocity >= 0 ) ? 1 : -1;
+			servo->profile.trajectoryDirection 				= ( servo->profile.trajectoryStartVelocity >= 0 ) ? 1 : -1;
 
 			/*   Update profile split status to deceleration phase   */
-			servo->profile.trajectorySplit = SERVO_PROFILE_SPLIT_1;
+			servo->profile.trajectorySplit 					= SERVO_PROFILE_SPLIT_1;
 
 		}
 
@@ -754,6 +760,60 @@ void errorHandeler(SERVO_CONTROL *servo) {
 }
 
 
+/*   Configuration data split and join function  */
+void configSplit(SERVO_CONTROL *servo, uint8_t *RxBuf, uint8_t *addressList, uint8_t listLenght) {
+
+	uint8_t i = 0;
+
+	while ( i < listLenght ) {
+		if ( servo->variablesSize[addressList[i]] == 1 ) {
+
+			*(uint16_t*)servo->variables[addressList[i]] = ( ( RxBuf[i] << 8 ) | RxBuf[i+1] );
+
+			i += 2;
+
+		}
+		else {
+
+			*(uint8_t*)servo->variables[addressList[i]] = RxBuf[i];
+
+			i += 1;
+
+		}
+
+	}
+
+}
+
+void configJoin(SERVO_CONTROL *servo, uint8_t *TxBuf, uint8_t *addressList, uint8_t listLenght) {
+
+	uint8_t i = 0;
+
+	while ( i < listLenght ) {
+		if ( servo->variablesSize[addressList[i]] == 1 ) {
+
+			*(uint16_t*)servo->variables[0] = ( ( TxBuf[i] << 8 ) | TxBuf[i+1] );
+
+			TxBuf[i] 	= ( ( * ( uint16_t* )servo->variables[0] ) >> 8 ) & 0xFF;
+			TxBuf[i+1] 	=   ( * ( uint16_t* )servo->variables[0] ) 	  & 0xFF;
+
+
+			i += 2;
+
+		}
+		else {
+
+			TxBuf[i] 	=  *(uint8_t*)servo->variables[addressList[i]];
+
+			i += 1;
+
+		}
+
+	}
+
+}
+
+
 /*   Higher level CAN-bus functions   */
 void processCanMessages(SERVO_CONTROL *servo, uint32_t RxFifo) {
 
@@ -775,7 +835,7 @@ void processCanMessages(SERVO_CONTROL *servo, uint32_t RxFifo) {
 			/*   Call operation function   */
 			OperationFucntionPointer function = ( OperationFucntionPointer ) servo->OperationFunctions[operationId];
 
-			function(servo, RxBuf, servo->variables, servo->readWritePrivlages, servo->variablesSize, operationId, priority);
+			function(servo, RxBuf, operationId, priority);
 
 		}
 
@@ -785,37 +845,37 @@ void processCanMessages(SERVO_CONTROL *servo, uint32_t RxFifo) {
 
 
 /*   Operation functions   */
-void writeSingle(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority) {
+void writeSingle(SERVO_CONTROL *servo, uint8_t *RxBuf, uint8_t operationId, uint8_t priority) {
 
 	/*   Initialise address variable   */
 	uint8_t adress = RxBuf[0];
 
 	/*   If address is inside range and has write privilege   */
-	if ( ( adress <= 46 )  && ( readWritePrivlages[adress] == 1 ) ) {
+	if ( ( adress <= 46 )  && ( servo->readWritePrivlages[adress] == 1 ) ) {
 
 			/*   If variable is 16-bit number   */
-			if ( variablesSize[adress] == 1 ) {
+			if ( servo->variablesSize[adress] == 1 ) {
 
-				*(uint16_t*)variables[adress] = ( ( RxBuf[1] << 8 ) | RxBuf[2] );
+				*(uint16_t*)servo->variables[adress] = ( ( RxBuf[1] << 8 ) | RxBuf[2] );
 
 			}
 
 			/*   If variable is 8-bit number   */
 			else {
 
-				*(uint8_t*)variables[adress] = RxBuf[2];
+				*(uint8_t*)servo->variables[adress] = RxBuf[2];
 
 			}
 
 	}
 
 	/*   Send back read message   */
-	readSingle(servo, RxBuf, variables, readWritePrivlages, variablesSize, operationId, priority);		// Value wont have changed if above if statement  in false;
+	readSingle(servo, RxBuf, operationId, priority);		// Value wont have changed if above if statement  in false;
 
 }
 
 
-void readSingle(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority) {
+void readSingle(SERVO_CONTROL *servo, uint8_t *RxBuf, uint8_t operationId, uint8_t priority) {
 
 	/*   Initialise address variable   */
 	uint8_t adress = RxBuf[0];
@@ -825,7 +885,7 @@ void readSingle(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t*
 	if ( adress <= 46 ) {
 
 		/*   If variable is 16-bit number   */
-		if ( variablesSize[adress] == 1 ) {
+		if ( servo->variablesSize[adress] == 1 ) {
 
 			/*   Initialise transmission buffer   */
 			uint8_t TxBuf[3];
@@ -833,7 +893,7 @@ void readSingle(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t*
 			/*   Set read address byte   */
 			TxBuf[0] = adress;
 
-			uint16_t readData =  *(uint16_t*)variables[adress];
+			uint16_t readData =  *(uint16_t*)servo->variables[adress];
 
 			/*   Set data bytes in array   */
 			TxBuf[1] = ( readData >> 8 ) & 0xFF;
@@ -852,7 +912,7 @@ void readSingle(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t*
 			/*   Set read address byte   */
 			TxBuf[0] = adress;
 
-			uint8_t readData =  *(uint8_t*)variables[adress];
+			uint8_t readData =  *(uint8_t*)servo->variables[adress];
 
 			/*   Set data bytes in array   */
 			TxBuf[1] = readData;
@@ -867,7 +927,7 @@ void readSingle(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t*
 }
 
 
-void torqueOnCommand(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority) {
+void torqueOnCommand(SERVO_CONTROL *servo, uint8_t *RxBuf, uint8_t operationId, uint8_t priority) {
 
 	/*   Servo  command    */
 	torqueEnable(servo, RxBuf[0] );		// First byte is direction
@@ -876,17 +936,17 @@ void torqueOnCommand(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uin
 	uint8_t TxBuf[2];
 
 	/*   Set read torqueEnable byte   */
-	TxBuf[0] = *(uint8_t*)variables[18];
+	TxBuf[0] = *(uint8_t*)servo->variables[18];
 
 	/*   Set read motionDirection byte   */
-	TxBuf[1] = *(uint8_t*)variables[19];
+	TxBuf[1] = *(uint8_t*)servo->variables[19];
 
 	/*   Send response frame   */
 	CAN_SendDataFrame(&servo->can, TxBuf, 2, priority, operationId);
 
 }
 
-void torqueOffCommand(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority) {
+void torqueOffCommand(SERVO_CONTROL *servo, uint8_t *RxBuf, uint8_t operationId, uint8_t priority) {
 
 	/*   Servo  command    */
 	torqueDisable(servo);
@@ -895,7 +955,7 @@ void torqueOffCommand(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, ui
 	uint8_t TxBuf[1];
 
 	/*   Set read torqueEnable byte   */
-	TxBuf[0] = *(uint8_t*)variables[18];
+	TxBuf[0] = *(uint8_t*)servo->variables[18];
 
 	/*   Send response frame   */
 	CAN_SendDataFrame(&servo->can, TxBuf, 1, priority, operationId);
@@ -903,163 +963,320 @@ void torqueOffCommand(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, ui
 }
 
 
-void startupCommand		(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority) {
+void startupCommand(SERVO_CONTROL *servo, uint8_t *RxBuf, uint8_t operationId, uint8_t priority) {
 
 	//TO do
 
 }
 
 
-void shutdownCommand	(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority) {
+void shutdownCommand(SERVO_CONTROL *servo, uint8_t *RxBuf, uint8_t operationId, uint8_t priority) {
 
 	//TO do
 
 }
 
 
-void writeConfig1		(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority) {
+void writeConfig1(SERVO_CONTROL *servo, uint8_t *RxBuf, uint8_t operationId, uint8_t priority) {
+
+	/*   Initialise address list   */
+	uint8_t addressList[] = {0, 1, 2, 5};
+
+	/*   Calculate list length   */
+	uint8_t listLenght = sizeof(addressList) / sizeof(addressList[0]);
 
 	/*   Write values    */
-	*(uint16_t*)variables[0] = ( ( RxBuf[0] << 8 ) | RxBuf[1] );	// Kp
-	*(uint16_t*)variables[1] = ( ( RxBuf[2] << 8 ) | RxBuf[3] );	// Ki
-	*(uint16_t*)variables[2] = ( ( RxBuf[4] << 8 ) | RxBuf[5] );	// Kd
-	*(uint16_t*)variables[5] = ( ( RxBuf[6] << 8 ) | RxBuf[7] );	// Lpf
+	configSplit(servo, RxBuf, addressList, listLenght);
+
+	/*   Read back written values to confirm   */
+	readconfig1(servo, RxBuf, operationId, priority);
 
 }
 
-void writeConfig2		(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority) {
+void writeConfig2(SERVO_CONTROL *servo, uint8_t *RxBuf, uint8_t operationId, uint8_t priority) {
+
+	/*   Initialise address list   */
+	uint8_t addressList[] = {10, 11, 14, 30};
+
+	/*   Calculate list length   */
+	uint8_t listLenght = sizeof(addressList) / sizeof(addressList[0]);
 
 	/*   Write values    */
-	*(uint16_t*)variables[10] = ( ( RxBuf[0] << 8 ) | RxBuf[1] );	// maxAcceleration
-	*(uint16_t*)variables[11] = ( ( RxBuf[2] << 8 ) | RxBuf[3] );	// maxVelocity
-	*(uint16_t*)variables[14] = ( ( RxBuf[4] << 8 ) | RxBuf[5] );	// followingThreshold
-	*(uint16_t*)variables[30] = ( ( RxBuf[6] << 8 ) | RxBuf[7] );	// motionThreshold
+	configSplit(servo, RxBuf, addressList, listLenght);
+
+	/*   Read back written values to confirm   */
+	readconfig2(servo, RxBuf, operationId, priority);
 
 }
 
-void writeConfig3		(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority) {
+void writeConfig3(SERVO_CONTROL *servo, uint8_t *RxBuf, uint8_t operationId, uint8_t priority) {
+
+	/*   Initialise address list   */
+	uint8_t addressList[] = {20, 21, 22, 23};
+
+	/*   Calculate list length   */
+	uint8_t listLenght = sizeof(addressList) / sizeof(addressList[0]);
 
 	/*   Write values    */
-	*(uint16_t*)variables[20] = ( ( RxBuf[0] << 8 ) | RxBuf[1] );	// maxMotorTemp
-	*(uint16_t*)variables[21] = ( ( RxBuf[2] << 8 ) | RxBuf[3] );	// maxIntTemp
-	*(uint16_t*)variables[22] = ( ( RxBuf[4] << 8 ) | RxBuf[5] );	// maxVoltage
-	*(uint16_t*)variables[23] = ( ( RxBuf[6] << 8 ) | RxBuf[7] );	// minVoltage
+	configSplit(servo, RxBuf, addressList, listLenght);
+
+	/*   Read back written values to confirm   */
+	readconfig3(servo, RxBuf, operationId, priority);
 
 }
 
-void writeConfig4		(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority) {
+void writeConfig4(SERVO_CONTROL *servo, uint8_t *RxBuf, uint8_t operationId, uint8_t priority) {
+
+	/*   Initialise address list   */
+	uint8_t addressList[] = {24, 25, 26};
+
+	/*   Calculate list length   */
+	uint8_t listLenght = sizeof(addressList) / sizeof(addressList[0]);
 
 	/*   Write values    */
-	*(uint16_t*)variables[24] = ( ( RxBuf[0] << 8 ) | RxBuf[1] );	// maxCurrent
-	*(uint16_t*)variables[25] = ( ( RxBuf[2] << 8 ) | RxBuf[3] );	// maxPosition
-	*(uint16_t*)variables[26] = ( ( RxBuf[4] << 8 ) | RxBuf[5] );	// minPosition
+	configSplit(servo, RxBuf, addressList, listLenght);
+
+	/*   Read back written values to confirm   */
+	readconfig4(servo, RxBuf, operationId, priority);
 
 }
 
-void writeConfig5		(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority) {
+void writeConfig5(SERVO_CONTROL *servo, uint8_t *RxBuf, uint8_t operationId, uint8_t priority) {
+
+	/*   Initialise address list   */
+	uint8_t addressList[] = {33, 35, 37, 39, 42, 43, 44};
+
+	/*   Calculate list length   */
+	uint8_t listLenght = sizeof(addressList) / sizeof(addressList[0]);
 
 	/*   Write values    */
-	*(uint8_t*)variables[33] = RxBuf[0];	// ADC - int temp 			- extIIRFilterCoefficient
-	*(uint8_t*)variables[35] = RxBuf[1];	// ADC - motor temp 		- extIIRFilterCoefficien
-	*(uint8_t*)variables[37] = RxBuf[2];	// ADC - battery voltage 	- extIIRFilterCoefficient
-	*(uint8_t*)variables[39] = RxBuf[3];	// ADC - current motor 		- extIIRFilterCoefficient
-	*(uint8_t*)variables[42] = RxBuf[4];	// frictionCompensation
-	*(uint8_t*)variables[43] = RxBuf[5];	// extIIRFilterCoefficient
-	*(uint8_t*)variables[44] = RxBuf[6];	// extCFilterCoefficient
+	configSplit(servo, RxBuf, addressList, listLenght);
+
+	/*   Read back written values to confirm   */
+	readconfig5(servo, RxBuf, operationId, priority);
 
 }
 
 
-void readconfig1			(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority) {
+void readconfig1(SERVO_CONTROL *servo, uint8_t *RxBuf, uint8_t operationId, uint8_t priority) {
+
+	/*   Initialise address list   */
+	uint8_t addressList[] = {0, 1, 2, 5};
+
+	/*   Calculate list length   */
+	uint8_t listLenght = sizeof(addressList) / sizeof(addressList[0]);
 
 	/*   Initialise transmission buffer   */
-	uint16_t TxBuf[4];
+	uint8_t TxBuf[8];
 
-	/*   Read values   */
-	TxBuf[0] =  *(uint16_t*)variables[0];
-	TxBuf[1] =  *(uint16_t*)variables[1];
-	TxBuf[2] =  *(uint16_t*)variables[2];
-	TxBuf[3] =  *(uint16_t*)variables[5];
+	/*   Read back written values   */
+	configJoin(servo, TxBuf, addressList, listLenght);
 
 	/*   Send back response frame to confirm change   */
-	CAN_SendDataFrame(&servo->can, (uint8_t*)TxBuf, 8, priority, 11);
+	CAN_SendDataFrame(&servo->can, TxBuf, ( sizeof( TxBuf ) / sizeof( uint8_t ) ), priority, 11);
 
 }
 
-void readconfig2			(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority) {
+void readconfig2(SERVO_CONTROL *servo, uint8_t *RxBuf, uint8_t operationId, uint8_t priority) {
+
+	/*   Initialise address list   */
+	uint8_t addressList[] = {10, 11, 14, 30};
+
+	/*   Calculate list length   */
+	uint8_t listLenght = sizeof(addressList) / sizeof(addressList[0]);
 
 	/*   Initialise transmission buffer   */
-	uint16_t TxBuf[3];
+	uint8_t TxBuf[8];
 
-	/*   Read values   */
-	TxBuf[0] =  *(uint16_t*)variables[10];
-	TxBuf[1] =  *(uint16_t*)variables[11];
-	TxBuf[2] =  *(uint16_t*)variables[14];
-	TxBuf[3] =  *(uint16_t*)variables[30];
+	/*   Read back written values   */
+	configJoin(servo, TxBuf, addressList, listLenght);
 
 	/*   Send back response frame to confirm change   */
-	CAN_SendDataFrame(&servo->can, (uint8_t*)TxBuf, 6, priority, 12);
-
+	CAN_SendDataFrame(&servo->can, TxBuf, ( sizeof( TxBuf ) / sizeof( uint8_t ) ), priority, 12);
 
 }
 
-void readconfig3			(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority) {
+void readconfig3(SERVO_CONTROL *servo, uint8_t *RxBuf, uint8_t operationId, uint8_t priority) {
+
+	/*   Initialise address list   */
+	uint8_t addressList[] = {20, 21, 22, 23};
+
+	/*   Calculate list length   */
+	uint8_t listLenght = sizeof(addressList) / sizeof(addressList[0]);
 
 	/*   Initialise transmission buffer   */
-	uint16_t TxBuf[4];
+	uint8_t TxBuf[8];
 
-	/*   Read values   */
-	TxBuf[0] =  *(uint16_t*)variables[20];
-	TxBuf[1] =  *(uint16_t*)variables[21];
-	TxBuf[2] =  *(uint16_t*)variables[22];
-	TxBuf[3] =  *(uint16_t*)variables[23];
+	/*   Read back written values   */
+	configJoin(servo, TxBuf, addressList, listLenght);
 
 	/*   Send back response frame to confirm change   */
-	CAN_SendDataFrame(&servo->can, (uint8_t*)TxBuf, 8, priority, 13);
+	CAN_SendDataFrame(&servo->can, TxBuf, ( sizeof( TxBuf ) / sizeof( uint8_t ) ), priority, 13);
 
 }
 
-void readconfig4			(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority) {
+void readconfig4(SERVO_CONTROL *servo, uint8_t *RxBuf, uint8_t operationId, uint8_t priority) {
+
+	/*   Initialise address list   */
+	uint8_t addressList[] = {24, 25, 26};
+
+	/*   Calculate list length   */
+	uint8_t listLenght = sizeof(addressList) / sizeof(addressList[0]);
 
 	/*   Initialise transmission buffer   */
-	uint16_t TxBuf[4];
+	uint8_t TxBuf[6];
 
-	/*   Read values   */
-	TxBuf[0] =  *(uint16_t*)variables[24];
-	TxBuf[1] =  *(uint16_t*)variables[25];
-	TxBuf[2] =  *(uint16_t*)variables[26];
+	/*   Read back written values   */
+	configJoin(servo, TxBuf, addressList, listLenght);
 
 	/*   Send back response frame to confirm change   */
-	CAN_SendDataFrame(&servo->can, (uint8_t*)TxBuf, 8, priority, 14);
+	CAN_SendDataFrame(&servo->can, TxBuf, ( sizeof( TxBuf ) / sizeof( uint8_t ) ), priority, 14);
 
 }
 
-void readconfig5			(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority) {
+void readconfig5(SERVO_CONTROL *servo, uint8_t *RxBuf, uint8_t operationId, uint8_t priority) {
+
+	/*   Initialise address list   */
+	uint8_t addressList[] = {33, 35, 37, 39, 42, 43, 44};
+
+	/*   Calculate list length   */
+	uint8_t listLenght = sizeof(addressList) / sizeof(addressList[0]);
 
 	/*   Initialise transmission buffer   */
 	uint8_t TxBuf[7];
 
-	/*   Read values   */
-	TxBuf[0] =  *(uint8_t*)variables[33];
-	TxBuf[1] =  *(uint8_t*)variables[35];
-	TxBuf[2] =  *(uint8_t*)variables[37];
-	TxBuf[3] =  *(uint8_t*)variables[39];
-	TxBuf[4] =  *(uint8_t*)variables[42];
-	TxBuf[5] =  *(uint8_t*)variables[43];
-	TxBuf[6] =  *(uint8_t*)variables[44];
+	/*   Read back written values   */
+	configJoin(servo, TxBuf, addressList, listLenght);
 
 	/*   Send back response frame to confirm change   */
-	CAN_SendDataFrame(&servo->can, TxBuf, 7, priority, 15);
+	CAN_SendDataFrame(&servo->can, TxBuf, ( sizeof( TxBuf ) / sizeof( uint8_t ) ), priority, 15);
+
+}
+
+void writeInStandard(SERVO_CONTROL *servo, uint8_t *RxBuf, uint8_t operationId, uint8_t priority) {
+
+	/*   Initialise address list   */
+	uint8_t addressList[] = {10, 11, 17};
+
+	/*   Calculate list length   */
+	uint8_t listLenght = sizeof(addressList) / sizeof(addressList[0]);
+
+	/*   Write values    */
+	configSplit(servo, RxBuf, addressList, listLenght);
+
+	/*   Read back written values to confirm   */
+	readInStandard(servo, RxBuf, operationId, priority);
 
 }
 
 
-void writeStandard		(SERVO_CONTROL *servo, uint8_t *RxBuf, void** variables, uint8_t* readWritePrivlages, uint8_t* variablesSize, uint8_t operationId, uint8_t priority) {
+void readInStandard(SERVO_CONTROL *servo, uint8_t *RxBuf, uint8_t operationId, uint8_t priority) {
 
+	/*   Initialise address list   */
+	uint8_t addressList[] = {10, 11, 17};
 
+	/*   Calculate list length   */
+	uint8_t listLenght = sizeof(addressList) / sizeof(addressList[0]);
+
+	/*   Initialise transmission buffer   */
+	uint8_t TxBuf[6];
+
+	/*   Read back written values   */
+	configJoin(servo, TxBuf, addressList, listLenght);
+
+	/*   Send back response frame to confirm change   */
+	CAN_SendDataFrame(&servo->can, TxBuf, ( sizeof( TxBuf ) / sizeof( uint8_t ) ), priority, 17);
 
 }
 
+
+void readStandard1(SERVO_CONTROL *servo, uint8_t *RxBuf, uint8_t operationId, uint8_t priority) {
+
+	/*   Initialise address list   */
+	uint8_t addressList[] = {3, 27, 28, 31};
+
+	/*   Calculate list length   */
+	uint8_t listLenght = sizeof(addressList) / sizeof(addressList[0]);
+
+	/*   Initialise transmission buffer   */
+	uint8_t TxBuf[8];
+
+	/*   Read back written values   */
+	configJoin(servo, TxBuf, addressList, listLenght);
+
+	/*   Send back response frame to confirm change   */
+	CAN_SendDataFrame(&servo->can, TxBuf, ( sizeof( TxBuf ) / sizeof( uint8_t ) ), priority, 18);
+
+}
+
+
+void readStandard2(SERVO_CONTROL *servo, uint8_t *RxBuf, uint8_t operationId, uint8_t priority) {
+
+	/*   Initialise address list   */
+	uint8_t addressList[] = {6, 7, 8, 9};
+
+	/*   Calculate list length   */
+	uint8_t listLenght = sizeof(addressList) / sizeof(addressList[0]);
+
+	/*   Initialise transmission buffer   */
+	uint8_t TxBuf[8];
+
+	/*   Read back written values   */
+	configJoin(servo, TxBuf, addressList ,listLenght);
+
+	/*   Send back response frame to confirm change   */
+	CAN_SendDataFrame(&servo->can, TxBuf, ( sizeof( TxBuf ) / sizeof( uint8_t ) ), priority, 19);
+
+}
+
+void readStandard3(SERVO_CONTROL *servo, uint8_t *RxBuf, uint8_t operationId, uint8_t priority) {
+
+	/*   Initialise address list   */
+	uint8_t addressList[] = {32, 34, 36, 38};
+
+	/*   Calculate list length   */
+	uint8_t listLenght = sizeof(addressList) / sizeof(addressList[0]);
+
+	/*   Initialise transmission buffer   */
+	uint8_t TxBuf[8];
+
+	/*   Read back written values   */
+	configJoin(servo, TxBuf, addressList, listLenght);
+
+	/*   Send back response frame to confirm change   */
+	CAN_SendDataFrame(&servo->can, TxBuf, ( sizeof( TxBuf ) / sizeof( uint8_t ) ), priority, 20);
+
+}
+
+void readStandard4(SERVO_CONTROL *servo, uint8_t *RxBuf, uint8_t operationId, uint8_t priority) {
+
+	/*   Initialise address list   */
+	uint8_t addressList[] = {12, 13, 29, 45, 46};
+
+	/*   Calculate list length   */
+	uint8_t listLenght = sizeof(addressList) / sizeof(addressList[0]);
+
+	/*   Initialise transmission buffer   */
+	uint8_t TxBuf[7];
+
+	/*   Read back written values   */
+	configJoin(servo, TxBuf, addressList, listLenght);
+
+	/*   Send back response frame to confirm change   */
+	CAN_SendDataFrame(&servo->can, TxBuf, ( sizeof( TxBuf ) / sizeof( uint8_t ) ), priority, 21);
+
+}
+
+
+/*   Status led control function   */
+void ledSet(uint8_t Red, uint8_t Green, uint8_t Blue) {
+
+	/*   Set led of/off   */
+	 HAL_GPIO_WritePin(LED_Red_GPIO_Port, 	LED_Red_Pin, 	Red);
+	 HAL_GPIO_WritePin(LED_Green_GPIO_Port, LED_Green_Pin, 	Green);
+	 HAL_GPIO_WritePin(LED_Blue_GPIO_Port, 	LED_Blue_Pin, 	Blue);
+
+}
 
 
 

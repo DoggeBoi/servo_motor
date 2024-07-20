@@ -145,16 +145,22 @@ int main(void)
   MX_OPAMP2_Init();
   /* USER CODE BEGIN 2 */
 
-  /*   Initialisation sequence   */
-    servoInit	(&servo);
-    encoderInit	(&servo, &hspi1, SPI1_CS_GPIO_Port, SPI1_CS_Pin);
-    motorInit	(&servo, &htim2, TIM_CHANNEL_1, hswA_GPIO_Port, hswA_Pin, hswB_GPIO_Port, hswB_Pin);
-    sensorsInit	(&servo, &hadc1, &hadc2, &hadc3, &hadc4, &hopamp2);
-    pidInit		(&servo);
-    imuInit		(&servo, &hspi2, SPI2_CS_GPIO_Port, SPI2_CS_Pin);
+  	  /*   Set status led to blue   */
+  	  ledSet(0, 0, 1);
 
-    /* make proper! in motor.c/.h*/
-    CAN_Init	(&servo.can, &hcan, 1);
+  	  /*   Preliminary initialisation sequence   */
+  	  servoInit		(&servo);
+  	  pidInit		(&servo);
+  	  canInit		(&servo, &hcan);
+
+  	  // WHILE STARTUP in stated!
+
+
+  	  encoderInit	(&servo, &hspi1, SPI1_CS_GPIO_Port, SPI1_CS_Pin);
+  	  motorInit		(&servo, &htim2, TIM_CHANNEL_1, hswA_GPIO_Port, hswA_Pin, hswB_GPIO_Port, hswB_Pin);
+  	  sensorsInit	(&servo, &hadc1, &hadc2, &hadc3, &hadc4, &hopamp2);
+
+  	  imuInit		(&servo, &hspi2, SPI2_CS_GPIO_Port, SPI2_CS_Pin);
 
   /* USER CODE END 2 */
 
@@ -196,7 +202,6 @@ int main(void)
   /*   Pause can inbox read functions   */
   vTaskSuspend(canFifo0Handle);
   vTaskSuspend(canFifo1Handle);
-  vTaskSuspend(canOutputHandle);
 
   /*   Link task handles to struct   */
   servo.can.taskFIFO0 = canFifo0Handle;
@@ -207,6 +212,9 @@ int main(void)
 
 /*TEMP!!!!!!!!!!!!!!!!!!!!!!!!!!!*/
   torqueEnable(&servo, 1);
+
+  /*   Set status led to green   */
+  ledSet(0, 1, 0);
 
 
 
@@ -787,6 +795,9 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOB, SPI2_CS_Pin|SPI1_CS_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOC, LED_Blue_Pin|LED_Green_Pin|LED_Red_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOA, hswB_Pin|hswA_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : B1_Pin */
@@ -801,6 +812,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : LED_Blue_Pin LED_Green_Pin LED_Red_Pin */
+  GPIO_InitStruct.Pin = LED_Blue_Pin|LED_Green_Pin|LED_Red_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /*Configure GPIO pins : hswB_Pin hswA_Pin */
   GPIO_InitStruct.Pin = hswB_Pin|hswA_Pin;
@@ -993,8 +1011,19 @@ void StartCanOutput(void const * argument)
   /* Infinite loop */
   for(;;)
   {
+
+	/*   Send standard output frames   */
+//	readStandard1(&servo, NULL, NULL, 1);
+//	readStandard2(&servo, NULL, NULL, 1);
+//	readStandard3(&servo, NULL, NULL, 1);
+//	readStandard4(&servo, NULL, NULL, 1);
+
     osDelay(SERVO_OUTPUT_INTERVAL);
+
   }
+
+  osThreadTerminate( NULL );		// In case of accidental break from for loop
+
   /* USER CODE END StartCanOutput */
 }
 
